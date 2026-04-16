@@ -1,0 +1,468 @@
+# Service to clean motion files older than specified age
+clean_motion_files:
+  target: {}
+  fields:
+    age:
+      description: The age of the files to remove in days. Default is 30 days.
+      example: 30
+      selector:
+        number:
+          min: 1
+          max: 365
+          unit_of_measurement: days
+
+# Get Firebase configuration from Oasira for mobile_app setup
+get_firebase_config:
+  target: {}
+
+# Add a label to an entity
+add_label_to_entity:
+  target: {}
+  fields:
+    entity_id:
+      description: The entity to update
+      example: "binary_sensor.front_door"
+      required: true
+      selector:
+        entity:
+
+    label:
+      description: The label to apply to the entity
+      example: "favorite"
+      required: true
+      selector:
+        label:
+
+# Create an alert record
+create_alert:
+  target: {}
+  fields:
+    alert_type:
+      description: The type of the alert
+      example: "Humidity Alert"
+      required: true
+      selector:
+        text:
+    alert_description:
+      description: Details about the alert
+      example: "High humidity detected in basement"
+      required: true
+      selector:
+        text:
+          multiline: true
+    status:
+      description: The status of the alert
+      example: "Active"
+      required: true
+      selector:
+        select:
+          options:
+            - "Active"
+            - "Resolved"
+            - "Acknowledged"
+
+# Confirm pending Oasira alarm
+confirm_pending_alarm:
+  target: {}
+
+# Cancel Oasira alarm
+cancel_alarm:
+  target: {}
+
+# Get Oasira alarm status
+get_alarm_status:
+  target: {}
+
+# Update entity area
+update_entity:
+  target: {}
+  fields:
+    entity_id:
+      description: The entity to update
+      example: "binary_sensor.front_door"
+      required: true
+      selector:
+        entity:
+
+    area_id:
+      description: The new area to assign to the entity
+      example: "living_room"
+      required: true
+      selector:
+        area:
+
+# Deploy latest Oasira config
+deploy_latest_config:
+  target: {}
+
+# Timeline Services - HomeKit Secure Video-like capability
+capture_snapshot:
+  name: Capture Snapshot
+  description: Capture a snapshot from a camera and save to timeline
+  target: {}
+  fields:
+    camera_entity_id:
+      description: The camera entity to capture from
+      example: "camera.front_door"
+      required: true
+      selector:
+        entity:
+          domain:
+            - camera
+
+    save_to_timeline:
+      description: Save the snapshot to timeline
+      default: true
+      selector:
+        boolean:
+
+    event_type:
+      description: Type of event (snapshot, motion, person)
+      default: snapshot
+      selector:
+        text:
+
+    description:
+      description: Description for the event
+      example: "Person detected at front door"
+      selector:
+        text:
+
+    labels:
+      description: Labels for the event
+      example: ["person", "front_door"]
+      selector:
+        text:
+          multiple: true
+
+    area_id:
+      description: Area ID for the event
+      selector:
+        area:
+
+record_video_clip:
+  name: Record Video Clip
+  description: Record a short video clip from a camera and save to timeline
+  target: {}
+  fields:
+    camera_entity_id:
+      description: The camera entity to record from
+      example: "camera.front_door"
+      required: true
+      selector:
+        entity:
+          domain:
+            - camera
+
+    duration:
+      description: Length of video clip in seconds
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+
+    save_to_timeline:
+      description: Save the clip to timeline
+      default: true
+      selector:
+        boolean:
+
+    description:
+      description: Description for the event
+      example: "Motion detected at front door"
+      selector:
+        text:
+
+    area_id:
+      description: Area ID for the event
+      selector:
+        area:
+
+create_person_event:
+  name: Create Person Event
+  description: Create a timeline event with person detection, snapshot and/or video
+  target: {}
+  fields:
+    camera_entity_id:
+      description: The camera entity ID
+      example: "camera.front_door"
+      required: true
+      selector:
+        entity:
+          domain:
+            - camera
+
+    camera_name:
+      description: Display name for the camera
+      example: "Front Door"
+      required: true
+      selector:
+        text:
+
+    snapshot_data:
+      description: Base64 encoded snapshot image
+      selector:
+        text:
+
+    video_clip_data:
+      description: Base64 encoded video clip
+      selector:
+        text:
+
+    video_duration:
+      description: Duration of video clip in seconds
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+
+    confidence:
+      description: Detection confidence (0.0-1.0)
+      default: 1.0
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+
+    labels:
+      description: Detection labels
+      example: ["person", "visitor"]
+      default: ["person"]
+      selector:
+        text:
+          multiple: true
+
+    area_id:
+      description: Area ID for the event
+      selector:
+        area:
+
+    area_name:
+      description: Display name for the area
+      selector:
+        text:
+
+    description:
+      description: Event description
+      selector:
+        text:
+
+get_timeline:
+  name: Get Timeline
+  description: Get timeline events for cameras or areas
+  target: {}
+  fields:
+    camera_entity_id:
+      description: Filter by camera entity ID
+      example: "camera.front_door"
+      selector:
+        entity:
+          domain:
+            - camera
+
+    area_id:
+      description: Filter by area ID
+      selector:
+        area:
+
+    event_types:
+      description: Filter by event types
+      example: ["person_detected", "motion"]
+      selector:
+        text:
+          multiple: true
+
+    start_date:
+      description: Start date (ISO format)
+      example: "2024-01-01T00:00:00Z"
+      selector:
+        text:
+
+    end_date:
+      description: End date (ISO format)
+      example: "2024-01-31T23:59:59Z"
+      selector:
+        text:
+
+    limit:
+      description: Maximum number of events to return
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 500
+
+update_timeline_event:
+  name: Update Timeline Event
+  description: Update a timeline event (mark as reviewed, toggle favorite)
+  target: {}
+  fields:
+    event_id:
+      description: The event ID to update
+      example: "abc12345"
+      required: true
+      selector:
+        text:
+
+    is_reviewed:
+      description: Mark event as reviewed
+      selector:
+        boolean:
+
+    is_favorite:
+      description: Toggle favorite status
+      selector:
+        boolean:
+
+    description:
+      description: Update event description
+      selector:
+        text:
+
+delete_timeline_event:
+  name: Delete Timeline Event
+  description: Delete a timeline event and its media files
+  target: {}
+  fields:
+    event_id:
+      description: The event ID to delete
+      example: "abc12345"
+      required: true
+      selector:
+        text:
+
+# Oasira AI Conversation services
+change_config:
+  name: Change config
+  description: Change the configuration of an existing Oasira AI Conversation integration
+  fields:
+    base_url:
+      example: "http://localhost:11434"
+      description: "Ollama server URL (default: http://localhost:11434)"
+      selector:
+        text:
+    model:
+      example: "llama3.2"
+      description: "Model to use (default: llama3.2)"
+      selector:
+        text:
+
+analyze_image:
+  name: Analyze image
+  description: Analyze an image and provide detailed description
+  fields:
+    image_path:
+      required: true
+      example: "/config/www/camera/snapshot.jpg"
+      description: "Local file path to the image to analyze"
+      selector:
+        text:
+    prompt:
+      required: false
+      example: "Please describe this image in detail."
+      description: "Custom prompt for analysis"
+      default: "Please describe this image in detail."
+      selector:
+        text:
+          multiline: true
+
+scan_home_automation_patterns:
+  name: Analyze automation patterns
+  description: Analyze Home Assistant automation patterns and generate recommendations
+  fields:
+    time_range_days:
+      example: 7
+      description: "Number of days to analyze (1-90)"
+      default: 7
+      selector:
+        number:
+          min: 1
+          max: 90
+          step: 1
+          mode: box
+    entity_types:
+      example: ["light", "switch", "climate"]
+      description: "Types of entities to analyze. Leave empty for all."
+      default: []
+      selector:
+        text:
+          multiple: true
+    include_entities:
+      example: ["light.living_room", "switch.kitchen"]
+      description: "Specific entities to include in analysis"
+      default: []
+      selector:
+        text:
+          multiple: true
+    exclude_entities:
+      example: ["sensor.unimportant"]
+      description: "Specific entities to exclude from analysis"
+      default: []
+      selector:
+        text:
+          multiple: true
+    pattern_types:
+      example: ["usage_patterns", "time_patterns"]
+      description: "Types of patterns to look for"
+      default: []
+      selector:
+        text:
+          multiple: true
+    min_confidence:
+      example: 0.7
+      description: "Minimum confidence threshold for recommendations (0.0-1.0)"
+      default: 0.7
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.1
+          mode: box
+    time_window_minutes:
+      example: 30
+      description: "Time window for pattern detection in minutes"
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 1440
+          step: 5
+          mode: box
+    save_results:
+      example: true
+      description: "Whether to save results to a file"
+      default: false
+      selector:
+        boolean:
+    results_file:
+      example: "automation_analysis_results.yaml"
+      description: "File path to save results"
+      default: "automation_analysis_results.yaml"
+      selector:
+        text:
+    create_automations:
+      example: true
+      description: "Whether to create automations from recommendations"
+      default: true
+      selector:
+        boolean:
+    automations_file:
+      example: "automations.yaml"
+      description: "File path to save created automations"
+      default: "automations.yaml"
+      selector:
+        text:
+
+# Create event service
+create_event:
+  target: {}
+  fields:
+    entity_id:
+      description: The entity that triggered the event
+      example: "binary_sensor.front_door"
+      required: true
+      selector:
+        entity:

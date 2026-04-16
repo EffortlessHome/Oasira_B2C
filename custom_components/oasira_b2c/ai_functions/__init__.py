@@ -1,0 +1,61 @@
+"""Tools for Oasira AI Conversation."""
+
+from __future__ import annotations
+
+from ..ai_exceptions import FunctionNotFound
+from .automation_analysis import AutomationAnalysisFunction
+from .base import Function
+from .bash import BashFunction
+from .composite import CompositeFunction
+from .detect import DetectObjectsFunction
+from .file import EditFileFunction, ReadFileFunction, WriteFileFunction
+from .image import ImageAnalysisFunction
+from .native import NativeFunction
+from .script import ScriptFunction
+from .sqlite import SqliteFunction
+from .template import TemplateFunction
+from .web import RestFunction, ScrapeFunction
+
+__all__ = [
+    "AutomationAnalysisFunction",
+    "BashFunction",
+    "CompositeFunction",
+    "DetectObjectsFunction",
+    "EditFileFunction",
+    "Function",
+    "ImageAnalysisFunction",
+    "NativeFunction",
+    "ReadFileFunction",
+    "RestFunction",
+    "ScrapeFunction",
+    "ScriptFunction",
+    "SqliteFunction",
+    "TemplateFunction",
+    "WriteFileFunction",
+    "get_function",
+]
+
+FUNCTIONS: dict[str, Function] = {
+    "native": NativeFunction(),
+    "script": ScriptFunction(),
+    "template": TemplateFunction(),
+    "rest": RestFunction(),
+    "scrape": ScrapeFunction(),
+    "composite": CompositeFunction(),
+    "sqlite": SqliteFunction(),
+    "bash": BashFunction(),
+    "read_file": ReadFileFunction(),
+    "write_file": WriteFileFunction(),
+    "edit_file": EditFileFunction(),
+    "image_analysis": ImageAnalysisFunction(),
+    "detect_objects": DetectObjectsFunction(),
+    "automation_analysis": AutomationAnalysisFunction(),
+}
+
+
+def get_function(function_type: str) -> Function:
+    """Get function by function_config."""
+    function = FUNCTIONS.get(function_type)
+    if function is None:
+        raise FunctionNotFound(function_type)
+    return function

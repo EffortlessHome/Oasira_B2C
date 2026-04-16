@@ -1,10 +1,10 @@
 {
-  "domain": "oasira_b2c",
-  "name": "Oasira B2C",
+  "domain": "Oasira",
+  "name": "Oasira",
   "codeowners": [],
   "dependencies": [],
-  "documentation": "https://www.oasira.ai",
+  "documentation": "https://www.Oasira.co",
   "iot_class": "local_polling",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "1.1.1"
 }
