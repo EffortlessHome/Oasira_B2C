@@ -1,6 +1,5 @@
 {
     "name": "Oasira Home",
-    "description": "A comprehensive Home Assistant integration providing advanced home automation features including security monitoring, presence detection, and smart home coordination.",
     "integration_type": "integration",
     "iot_class": "cloud_polling",
     "domains": [
