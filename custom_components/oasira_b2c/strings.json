@@ -45,7 +45,11 @@
       "init": {
         "title": "Oasira Options",
         "data": {
-          "debug_mode": "Enable debug logging"
+          "debug_mode": "Enable debug logging",
+          "ollama_base_url": "Ollama Base URL"
+        },
+        "description": {
+          "ollama_base_url": "Base URL for Ollama API (default: http://localhost:11434)"
         }
       }
     }

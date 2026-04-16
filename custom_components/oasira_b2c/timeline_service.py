@@ -16,6 +16,61 @@ from .timeline_event import get_timeline_manager
 
 _LOGGER = logging.getLogger(__name__)
 
+# Schema definitions for timeline services
+CAPTURE_SNAPSHOT_SCHEMA = vol.Schema({
+    vol.Required("camera_entity_id"): cv.string,
+    vol.Optional("save_to_timeline", default=True): cv.boolean,
+    vol.Optional("event_type", default="snapshot"): cv.string,
+    vol.Optional("description"): cv.string,
+    vol.Optional("labels", default=[]): cv.ensure_list,
+    vol.Optional("area_id"): cv.string,
+    vol.Optional("area_name"): cv.string,
+})
+
+RECORD_VIDEO_CLIP_SCHEMA = vol.Schema({
+    vol.Required("camera_entity_id"): cv.string,
+    vol.Optional("duration", default=5): cv.positive_int,
+    vol.Optional("save_to_timeline", default=True): cv.boolean,
+    vol.Optional("event_type", default="motion"): cv.string,
+    vol.Optional("description"): cv.string,
+    vol.Optional("area_id"): cv.string,
+    vol.Optional("area_name"): cv.string,
+})
+
+CREATE_PERSON_EVENT_SCHEMA = vol.Schema({
+    vol.Required("camera_entity_id"): cv.string,
+    vol.Optional("camera_name"): cv.string,
+    vol.Optional("snapshot_data"): cv.string,
+    vol.Optional("video_clip_data"): cv.string,
+    vol.Optional("video_duration", default=5): cv.positive_int,
+    vol.Optional("confidence", default=1.0): vol.Coerce(float),
+    vol.Optional("labels", default=["person"]): cv.ensure_list,
+    vol.Optional("area_id"): cv.string,
+    vol.Optional("area_name"): cv.string,
+    vol.Optional("description"): cv.string,
+    vol.Optional("metadata", default={}): dict,
+})
+
+GET_TIMELINE_SCHEMA = vol.Schema({
+    vol.Optional("camera_entity_id"): cv.string,
+    vol.Optional("area_id"): cv.string,
+    vol.Optional("event_types", default=[]): cv.ensure_list,
+    vol.Optional("start_date"): cv.string,
+    vol.Optional("end_date"): cv.string,
+    vol.Optional("limit", default=50): cv.positive_int,
+})
+
+UPDATE_EVENT_SCHEMA = vol.Schema({
+    vol.Required("event_id"): cv.string,
+    vol.Optional("is_reviewed"): cv.boolean,
+    vol.Optional("is_favorite"): cv.boolean,
+    vol.Optional("description"): cv.string,
+})
+
+DELETE_EVENT_SCHEMA = vol.Schema({
+    vol.Required("event_id"): cv.string,
+})
+
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up timeline services."""

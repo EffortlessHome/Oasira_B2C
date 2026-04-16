@@ -587,9 +587,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Initialize merged AI runtime client for ai_task/conversation platforms.
     try:
+        # Use ollama_base_url from options if set, otherwise fall back to entry.data
+        ollama_base_url = entry.options.get("ollama_base_url") or entry.data.get(AI_CONF_BASE_URL) or AI_DEFAULT_CONF_BASE_URL
         entry.oasira_ai_runtime_data = await get_ai_authenticated_client(
             hass=hass,
-            base_url=entry.data.get(AI_CONF_BASE_URL, AI_DEFAULT_CONF_BASE_URL),
+            base_url=ollama_base_url,
             timeout=entry.options.get(AI_CONF_TIMEOUT, AI_DEFAULT_TIMEOUT),
         )
     except Exception as ai_err:
