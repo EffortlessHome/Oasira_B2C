@@ -1,7 +1,7 @@
 # 🏠 Oasira
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-1.2.7-blue.svg)](https://github.com/Oasira/Oasira)
+[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](https://github.com/Oasira/Oasira)
 
 **Oasira** is a next-generation Home Assistant integration that transforms your house into a truly intelligent, automated ecosystem.
 
@@ -23,7 +23,7 @@
 ## 🚀 Getting Started
 
 For installation instructions, setup guides, and documentation, visit:
-**https://www.Oasira.co/get-started/**
+**https://www.Oasira.ai/**
 
 ### Quick Install via HACS
 1. Open **HACS** in Home Assistant
@@ -42,7 +42,7 @@ For installation instructions, setup guides, and documentation, visit:
 ---
 
 ## 🤝 Community & Support
-- **Documentation**: [Oasira.co/get-started](https://www.Oasira.co/get-started/)
-- **Report Issues**: [GitHub Issues](https://github.com/Oasira/Oasira/issues)
-- **Website**: [Oasira.co](https://Oasira.co)
+- **Documentation**: [Oasira/get-started](https://www.Oasira.ai/)
+- **Report Issues**: [GitHub Issues](https://github.com/EffortlessHome/Oasira_B2C/issues)
+- **Website**: [Oasira](https://Oasira.ai)
 

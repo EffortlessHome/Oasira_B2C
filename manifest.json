@@ -1,10 +1,7 @@
 {
   "domain": "oasira_b2c",
   "name": "Oasira Home",
-  "codeowners": [],
-  "dependencies": [],
-  "documentation": "https://www.oasira.ai",
-  "iot_class": "local_polling",
-  "requirements": [],
-  "version": "1.0.1"
-}
+  "codeowners": [
+    "@EffortlessHome"
+  ],
+  "description": "A comprehensive Home Assistant integration providing advanced home automation features including security monitoring, presence detection, and smart home coordination.",
