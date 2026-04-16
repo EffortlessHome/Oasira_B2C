@@ -1,0 +1,21 @@
+blueprint:
+  name: Pool Water Quality Manager
+  description: TBD
+  domain: automation
+  author: Oasira Home
+  input:
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+trigger:
+  - platform: time_pattern
+    minutes: /1
+
+action:
+  - choose: []
+    default: !input additional_actions
+mode: single

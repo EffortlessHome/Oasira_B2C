@@ -1,16 +1,5 @@
 {
     "name": "Oasira Home",
     "integration_type": "integration",
-    "iot_class": "cloud_polling",
-    "domains": [
-        "binary_sensor",
-        "sensor",
-        "switch",
-        "light",
-        "button",
-        "cover",
-        "alarm_control_panel",
-        "notify",
-        "siren"
-    ]
+    "iot_class": "cloud_polling"
 }

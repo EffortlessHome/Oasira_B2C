@@ -1,0 +1,97 @@
+blueprint:
+  name: Medication Not Taken
+  description: Actions and notifications when medication was not taken in the given time period.
+  domain: automation
+  author: Oasira Home
+  input:
+    switch:
+      name: Medication Tracking Switch
+      description: "The Medication Tracking Switch to Monitor."
+      selector:
+        entity:
+          domain: switch
+    action:
+      name: Action
+      description: "Action to perform if the switch was not on in the last 24 hours."
+      default: []
+      selector:
+        action: {}
+    execution_time:
+      name: What time of the day will the medication check run
+      description: The time of day when this check and notification will run each day.
+      selector:
+        time: {}
+
+    numhours:
+      description: The number of hours since medication last taken
+      name: Number of hours since last taken
+      default: 24
+      selector:
+        number:
+          min: 1.0
+          max: 100.0
+          step: 1.0
+          mode: slider
+    person_input:
+      name: Person
+      description: The person to notify
+      selector:
+        entity:
+          domain: sensor
+    notification_message:
+      name: Notification message
+      description: The notification message to send
+      default: "PERSON NAME MEDICATION NAME Not Taken Within Required Timeframe"
+
+    data_clickaction_url:
+      name: URL to Navigate (Optional)
+      description:
+        The URL to navigate to when clicking on the notification. (default
+        = /lovelace)
+      default: /lovelace
+
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+trigger:
+  - at: !input execution_time
+    platform: time
+
+variables:
+  clickActionURL: !input data_clickaction_url
+  numhours: !input numhours
+
+  message: !input notification_message
+
+  messagewithparams: "{{ message }} Number of Hours: {{ states(numhours) }} "
+
+condition:
+  - condition: template
+    value_template: >
+      {{
+        not is_state(input.switch, 'on') and
+        not states[input.switch].attributes.last_changed >= (now() - timedelta(hours=input.numhours))
+      }}
+
+action:
+  - service: oasira_b2c.notify_person_service
+    data:
+      target: !input person_input
+      title: "Medication Not Taken Notification"
+      message: "{{ messagewithparams }}"
+      data:
+        clickAction: !input data_clickaction_url
+        ttl: 0
+        priority: high
+        url: !input data_clickaction_url
+  - service: oasira_b2c.create_alert_service
+    data:
+      alert_type: "Medication Not Taken Notification"
+      alert_description: "{{ messagewithparams }}"
+      status: Active
+  - choose: []
+    default: !input additional_actions

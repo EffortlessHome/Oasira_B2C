@@ -1,0 +1,84 @@
+blueprint:
+  name: Set Renter Door Code
+  description: "A script that sets a renter temporary code for smart door locks"
+  domain: script
+  author: Oasira Home
+  input:
+    lock:
+      description: (Required) Which door lock to program
+      name: Lock
+      selector:
+        target:
+          entity:
+            domain: lock
+    lock_name:
+      name: Lock Name
+      description: The friendly name of the lock in HA
+      default: doorlock
+    slot:
+      description: (Required) Which code slot to use (0-29)
+      name: Slot
+      default: 10
+      selector:
+        text:
+    duration:
+      description: How long the code is valid for
+      name: Valid for
+      selector:
+        duration:
+          enable_day: true
+    on_start:
+      description: (Optional) Action to execute when code is enabled
+
+        The lock entity is available via the "lock" variable.
+        The set code is available via the "code" variable.
+        The set code slot is available via the "slot" variable.
+        The validity time is available via the "duration" variable.
+      name: When code enabled
+      default: []
+      selector:
+        action:
+    on_end:
+      description: (Optional) Action to execute when code is disabled
+      name: When code disabled
+      default: []
+      selector:
+        action:
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+variables:
+  lock: !input lock
+  slot: !input slot
+  duration: !input duration
+  lock_name: !input lock_name
+
+sequence:
+  - service: mqtt.publish
+    data:
+      topic: zigbee2mqtt/{{ lock_name }}/set
+      payload: >-
+        {"pin_code": {"user": "{{ slot }}", "user_type": "unrestricted", "user_enabled":
+        "true", "pin_code": "{{ states('input_text.CurrentRenterPinCode') }}"}}
+  - choose:
+      - conditions: "{{ true }}"
+        sequence: !input on_start
+  - delay: "{{ duration }}"
+  - service: mqtt.publish
+    data:
+      topic: zigbee2mqtt/{{ lock_name }}/set
+      payload: >-
+        {"pin_code": {"user": "{{ slot }}", "user_type": "unrestricted", "user_enabled":
+        "true", "pin_code": ""}}
+  - choose:
+      - conditions: "{{ true }}"
+        sequence: !input on_end
+
+  - choose: []
+    default: !input additional_actions
+
+mode: single

@@ -1,0 +1,132 @@
+blueprint:
+  name: Pool Pump Manager
+  description:
+    Schedules pool pump based on its capacity and pool size. Just set your pools ize (volume),
+    your pump flow rate and desired time limit the pump can rum daily. The automation will calculate the turnover
+    rate and swithes on and off the pump as required.
+    Extends the work of https://gist.github.com/swingerman/3dda78527397f8b27e00dbd60ab2dc7b
+  domain: automation
+  author: Oasira Home
+  input:
+    pool_pump:
+      name: Pool Pump
+      description: A switch that controls the pool pump
+      selector:
+        entity:
+          domain: switch
+
+    pool_volume:
+      name: Pool Volume
+      description: The capacity of the pool. This will be used to calculate the turnover rate of your pool. Use the same bas unit for Pool Volume and Pump Flow Rate!
+      selector:
+        number:
+          min: 1
+          max: 100000
+          unit_of_measurement: "gal/m3/l"
+          mode: box
+
+    pump_flow_rate:
+      name: Pump Flow Rate
+      description: The flow rat eof your pool pump. This will be used to calculate the turnover rate fo your pool. Use the same bas unit for Pool Volume and Pump Flow Rate!
+      selector:
+        number:
+          min: .5
+          max: 1000
+          unit_of_measurement: "gph/m3ph/lph"
+          step: .5
+          mode: box
+
+    maximum_run_time:
+      name: Maximum Pump Run Time Per Day
+      description: The deisred pump run time per day.
+      selector:
+        number:
+          min: 0
+          max: 24
+          mode: slider
+          unit_of_measurement: hours
+      default: 8
+
+    season_toggle:
+      name: Pool Season toggle
+      description: Adds ability to completely turn on-off the automation using a switch or boolean helper
+      selector:
+        entity:
+          domain:
+            - input_boolean
+            - switch
+
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+variables:
+  var_pool_pump: !input pool_pump
+  var_pool_volume: !input pool_volume
+  var_pump_flow_rate: !input pump_flow_rate
+  var_maximum_run_time: !input maximum_run_time
+  var_turnover_rate: "{{ (var_pool_volume | float(1)) / (var_pump_flow_rate | float(1)) }}"
+  var_turnover_per_day: "{{ 24 / var_turnover_rate }}"
+  var_runs_per_day: "{{ ((var_maximum_run_time | int(1)) / var_turnover_rate) | round(0) }}"
+  var_pump_state_changed_sice: "{{ (now().timestamp() - as_timestamp(states[var_pool_pump].last_changed)) / 3600 }}"
+  var_max_off_time: "{{ (24 - var_maximum_run_time | int) / var_runs_per_day }}"
+
+trigger:
+  - platform: time_pattern
+    minutes: /1
+  # proper trigger after variables in trigger will be supported
+  # - platform: template
+  #   id: on_trigger
+  #   value_template: >-
+  #     {% if is_state(var_pool_pump, 'on') and (var_pump_state_changed_sice > var_turnover_rate) %}true{% endif %}
+  # - platform: template
+  #   id: off_trigger
+  #   value_template: >-
+  #     {% if is_state(var_pool_pump, 'off') and (var_pump_state_changed_sice > var_max_off_time) %}true{% endif %}
+
+action:
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: !input pool_pump
+            state: "off"
+          - condition: state
+            entity_id: !input season_toggle
+            state: "on"
+          - condition: template
+            value_template: >-
+              {{ var_pump_state_changed_sice > var_max_off_time }}
+
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: !input pool_pump
+      - conditions:
+          - condition: state
+            entity_id: !input season_toggle
+            state: "on"
+          - condition: state
+            entity_id: !input pool_pump
+            state: "on"
+          - condition: template
+            value_template: >-
+              {{ var_pump_state_changed_sice > var_turnover_rate }}
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input pool_pump
+      - conditions:
+          - condition: state
+            entity_id: !input season_toggle
+            state: "off"
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input pool_pump
+    default: []
+  - choose: []
+    default: !input additional_actions
+mode: single

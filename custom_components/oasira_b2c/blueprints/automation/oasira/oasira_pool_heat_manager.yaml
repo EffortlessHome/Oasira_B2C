@@ -1,0 +1,78 @@
+blueprint:
+  name: Pool Heat Manager
+  description: Control your pool heater based on the current temperature of the pool and disable completely if needed based on season.
+  domain: automation
+  author: Oasira Home
+  input:
+    pool_heater:
+      name: Pool Heater
+      description: A switch that controls the pool heater
+      selector:
+        entity:
+          domain: switch
+
+    tempsensor:
+      name: Temperature Sensor
+      description: The pool temperature sensor
+      selector:
+        entity:
+          filter:
+          - domain:
+            - sensor
+          multiple: false
+
+    target_temperature:
+      description: Temperature to use to trigger the heater to run.
+      name: Target Pool Temperature
+      default: 80
+      selector:
+        number:
+          min: 0.0
+          max: 100.0
+          unit_of_measurement: degrees
+          step: 1.0
+          mode: slider
+
+    season_toggle:
+      name: Pool Season toggle
+      description: Adds ability to completely turn on-off the automation using a switch or boolean helper
+      selector:
+        entity:
+          domain:
+            - input_boolean
+            - switch
+
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+trigger:
+- platform: numeric_state
+  entity_id: !input tempsensor
+  below: !input target_temperature
+- platform: numeric_state
+  entity_id: !input tempsensor
+  above: !input target_temperature
+
+condition:
+- condition: state
+  entity_id: !input season_toggle
+  state: 'on'
+
+action:
+- choose:
+  - conditions:
+    - condition: numeric_state
+      entity_id: !input tempsensor
+      below: !input target_temperature
+    sequence:
+    - service: switch.turn_on
+      target:
+        entity_id: !input pool_heater
+
+- choose: []
+  default: !input additional_actions
+mode: single

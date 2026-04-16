@@ -1,0 +1,92 @@
+blueprint:
+  name: Smart Oven/Stove Temperature Sensor Conversion End Automation
+  description: Set the end run action(s) to take to convert a dumb oven or stove into a smart one. The automation runs every 30 minutes. How much should the temp have dropped in that timeframe to trigger.
+  domain: automation
+  author: Oasira Home
+  input:
+    oventempsensor:
+      name: Oven/StoveTemperature Sensor
+      description: The oven or stove temperature sensor
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+
+    numdegrees:
+      description: The number of degrees of temperature drop since last reading.
+      name: Number of degrees dropped
+      default: 10
+      selector:
+        number:
+          min: 10.0
+          max: 400.0
+          step: 1.0
+          mode: slider
+
+    person_input:
+      name: Person
+      description: The person to notify
+      selector:
+        entity:
+          domain: sensor
+    notification_message:
+      name: Notification message
+      description: The notification message to send
+      default: Oven/Stove Turned Off
+
+    data_clickaction_url:
+      name: URL to Navigate (Optional)
+      description:
+        The URL to navigate to when clicking on the notification. (default
+        = /lovelace)
+      default: /lovelace
+
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+triggers:
+  - trigger: time_pattern
+    minutes: "30"
+  - trigger: time_pattern
+    minutes: "59"
+
+variables:
+  clickActionURL: !input data_clickaction_url
+
+  previous_temp: >-
+    {{ state_attr(input.oventempsensor, 'last_updated') | default(0) |
+    float }}
+
+conditions:
+  - condition: template
+    value_template: >
+      {% set current_temp = states(input.oventempsensor) | float %} {{
+      (previous_temp - current_temp ) >= input.numdegrees }}
+
+action:
+  - service: oasira_b2c.notify_person_service
+    data:
+      target: !input person_input
+      title: !input notification_message
+      message: !input notification_message
+      data:
+        clickAction: !input data_clickaction_url
+        ttl: 0
+        priority: high
+        url: !input data_clickaction_url
+
+  #TODO: create an oven_stove switch and sensor in code
+  #- action: switch.turn_off
+  #  metadata: {}
+  #  data: {}
+  #  target:
+  #    entity_id: !input appliance_switch
+
+  - choose: []
+    default: !input additional_actions

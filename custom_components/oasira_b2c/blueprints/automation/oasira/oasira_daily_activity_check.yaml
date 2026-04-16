@@ -1,0 +1,136 @@
+blueprint:
+  name: Daily activity check
+  description: Set the actions to for the daily activity check to ensure adequate motion and exercise.
+  domain: automation
+  author: Oasira Home
+  input:
+    stepssensor:
+      name: Steps Sensor
+      description: The Daily Steps Tracker Sensor
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+
+    pacesensor:
+      name: Average Pace Sensor
+      description: The Daily Active Average Pace Sensor
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+
+    floorsensor:
+      name: Floors Ascended Sensor
+      description: The Daily Floors Ascended Sensor
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+
+    daily_steps_baseline:
+      description: Daily Steps Baseline
+      name: Daily Steps Baseline
+      default: 500
+      selector:
+        number:
+          min: 1.0
+          max: 20000.0
+          step: 1.0
+          mode: slider
+    daily_pace_baseline:
+      description: Daily Active Pace Baseline
+      name: Daily Pace Baseline
+      default: 1
+      selector:
+        number:
+          min: 1.0
+          max: 100.0
+          step: 1.0
+          mode: slider
+    daily_floors_baseline:
+      description: Daily Floors Ascended Baseline
+      name: Daily Floors Ascended Baseline
+      default: 2
+      selector:
+        number:
+          min: 1.0
+          max: 100.0
+          step: 1.0
+          mode: slider
+    person_input:
+      name: Person
+      description: The person to notify
+      selector:
+        entity:
+          domain: sensor
+    execution_time:
+      name: What time of the day will the activity check run
+      description: The time of day when this check and notification will run each day.
+      selector:
+        time: {}
+    notification_message:
+      name: Notification message
+      description: The notification message to send
+      default: "PERSON NAME Activity Today Did Not Meet Baseline"
+
+    data_clickaction_url:
+      name: URL to Navigate (Optional)
+      description:
+        The URL to navigate to when clicking on the notification. (default
+        = /lovelace)
+      default: /lovelace
+
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+trigger:
+  - at: !input execution_time
+    platform: time
+
+variables:
+  clickActionURL: !input data_clickaction_url
+  steps: !input stepssensor
+  pace: !input pacesensor
+  floors: !input floorsensor
+  message: !input notification_message
+
+  messagewithparams: "{{ message }} Steps: {{ states(steps) }} Pace: {{ states(pace) }} Floors: {{ states(floors) }}"
+
+conditions:
+  - condition: or
+    conditions:
+      - condition: numeric_state
+        entity_id: !input stepssensor
+        below: !input daily_steps_baseline
+      - condition: numeric_state
+        entity_id: !input pacesensor
+        below: !input daily_pace_baseline
+      - condition: numeric_state
+        entity_id: !input floorsensor
+        below: !input daily_floors_baseline
+
+action:
+  - service: oasira_b2c.notify_person_service
+    data:
+      target: !input person_input
+      title: "Daily Activity Update"
+      message: "{{ messagewithparams }}"
+      data:
+        clickAction: !input data_clickaction_url
+        ttl: 0
+        priority: high
+        url: !input data_clickaction_url
+
+  - choose: []
+    default: !input additional_actions

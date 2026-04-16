@@ -2,7 +2,7 @@ blueprint:
   name: Climate Control Turn Off Notification Action
   description: Climate Control Turn Off Notification Action
   domain: automation
-  author: Oasira
+  author: Oasira Home
   input:
     target_climate:
       name: Climate Control Entity

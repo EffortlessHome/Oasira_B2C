@@ -2,7 +2,7 @@ blueprint:
   name: Report offline smart devices
   description: Works with Smart Plugs, ZWave, Zigbee etc.
   domain: automation
-  author: Oasira
+  author: Oasira Home
   input:
     time:
       name: Time to test on
@@ -27,11 +27,9 @@ blueprint:
                 - lock
                 - light
                 - binary_sensor
-             
-    additional_actions:
-      name: Additional Actions
-      description: Add additional actions to execute (Optional)
-      default: []
+    actions:
+      name: Actions
+      description: Take any actions here. Use the param {{offline_devices}} in your message to inform what is offline.
       selector:
         action: {}
 
@@ -56,18 +54,7 @@ trigger:
     at: !input time
 condition:
   - "{{ offline_devices != '' }}"
-
 action:
-  - service: notify.Oasira
-    data:
-      message: 'Offline device(s) detected: {{ offline_devices }}'
-
-  - service: Oasira.create_alert_service
-    data:
-      alert_type: Offline device(s)
-      alert_description: Offline device(s) detected
-      status: Active
   - choose: []
-    default: !input additional_actions
-
+    default: !input actions
 mode: single

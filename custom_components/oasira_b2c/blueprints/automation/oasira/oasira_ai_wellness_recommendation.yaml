@@ -1,0 +1,65 @@
+blueprint:
+  name: AI Wellness Recommendation
+  description: >
+    Send daily wellness data to AI and log a personalized recommendation.
+  domain: automation
+  input:
+    trigger_time:
+      name: Time to Trigger
+      description: Time of day to run the automation
+      selector:
+        time:
+    motion_sensor:
+      name: Motion Activity Sensor
+      selector:
+        entity:
+          domain: sensor
+    steps_sensor:
+      name: Steps Sensor
+      selector:
+        entity:
+          domain: sensor
+    distance_sensor:
+      name: Distance Sensor
+      selector:
+        entity:
+          domain: sensor
+    active_time_sensor:
+      name: Active Time Sensor
+      selector:
+        entity:
+          domain: sensor
+
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+
+trigger:
+  - platform: time
+    at: !input trigger_time
+
+action:
+  - alias: Send to AI
+    action: ai_task.generate_data
+    data:
+      task_name: process
+      instructions: >
+        Suggest one personalized lifestyle, wellness, or home recommendation (e.g., hydrate more, stretch, take a break, adjust sleep)
+        that could help improve well-being tomorrow. Limit to 255 chars or less. 
+      entity_id: ai_task.oasira_business_ai_task
+    response_variable: responsevar
+
+  - alias: Log suggestion
+    service: text.set_value
+    target:
+      entity_id: text.aiwellnesssuggestion
+    data:
+      value: "{{ responsevar.data }}"
+
+  - choose: []
+    default: !input additional_actions
+
+mode: single

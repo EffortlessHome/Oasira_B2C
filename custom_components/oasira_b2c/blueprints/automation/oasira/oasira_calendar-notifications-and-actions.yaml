@@ -1,0 +1,40 @@
+blueprint:
+  name: Calendar Notifications & Actions
+  description: Calendar Notifications & Actions
+  domain: automation
+  author: Oasira Home
+  input:
+    calendar:
+      name: Calendar *
+      description: Calendar to be used.
+      default: {}
+      selector:
+        entity:
+          filter:
+            - domain:
+                - calendar
+          multiple: false
+    global_conditions:
+      name: Global Conditions
+      description: Enter any global conditions you would like to apply to the automation.
+      default: []
+      selector:
+        condition: {}
+    additional_actions:
+      name: Additional Actions
+      description: Add any actions to execute (otional)
+      default: []
+      selector:
+        action: {}
+mode: single
+trigger:
+  - platform: calendar
+    event: start
+    entity_id: !input calendar
+    offset: 0:0:0
+condition:
+  - condition: and
+    conditions: !input global_conditions
+action:
+  - choose: []
+    default: !input additional_actions
