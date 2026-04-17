@@ -22,7 +22,7 @@ from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 
 VERSION = "1.1.25"
 NAME = "Oasira"
-name_internal = "Oasira"
+name_internal = "oasira"
 DOMAIN = "oasira_b2c"
 
 # Labels we want to ensure exist

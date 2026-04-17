@@ -791,10 +791,10 @@ def _deploy_latest_config_sync(hass: HomeAssistant):
 
     source_themes_dir = os.path.join(integration_dir, "themes")
     source_blueprints_dir = os.path.join(integration_dir, "blueprints")
-    source_dir = os.path.join(integration_dir, "www/Oasira")
+    source_dir = os.path.join(integration_dir, "www/oasira_b2c")
 
     target_themes_dir = hass.config.path("themes")
-    target_dir = hass.config.path("www/Oasira")
+    target_dir = hass.config.path("www/oasira_b2c")
     target_blueprints_dir = hass.config.path("blueprints")
 
     # Ensure destination directories exist
