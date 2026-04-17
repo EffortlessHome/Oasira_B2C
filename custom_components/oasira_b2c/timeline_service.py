@@ -118,7 +118,7 @@ UPDATE_EVENT_SCHEMA = vol.Schema({
     vol.Optional("description"): cv.string,
 })
 
-CREATE_EVENT_SCHEMA = vol.Schema({
+CREATE_TIMELINE_EVENT_SCHEMA = vol.Schema({
     vol.Required("entity_id"): cv.string,
     vol.Optional("entity_name"): cv.string,
     vol.Required("event_type"): cv.string,
@@ -398,7 +398,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Failed to update timeline event: %s", e)
             return {"success": False, "error": str(e)}
 
-    async def create_event(call: ServiceCall) -> ServiceResponse:
+    async def create_timeline_event(call: ServiceCall) -> ServiceResponse:
         """Create a generic timeline event for any sensor or device."""
         entity_id = call.data["entity_id"]
         entity_name = call.data.get("entity_name", entity_id)
@@ -459,7 +459,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "capture_snapshot", capture_snapshot, CAPTURE_SNAPSHOT_SCHEMA)
     hass.services.async_register(DOMAIN, "record_video_clip", record_video_clip, RECORD_VIDEO_CLIP_SCHEMA)
     hass.services.async_register(DOMAIN, "create_person_event", create_person_event, CREATE_PERSON_EVENT_SCHEMA)
-    hass.services.async_register(DOMAIN, "create_event", create_event, CREATE_EVENT_SCHEMA)
+    hass.services.async_register(
+        DOMAIN,
+        "create_timeline_event",
+        create_timeline_event,
+        CREATE_TIMELINE_EVENT_SCHEMA,
+    )
     hass.services.async_register(DOMAIN, "get_timeline", get_timeline, GET_TIMELINE_SCHEMA)
     hass.services.async_register(DOMAIN, "update_timeline_event", update_timeline_event, UPDATE_EVENT_SCHEMA)
 

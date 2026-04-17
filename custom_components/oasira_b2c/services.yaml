@@ -250,7 +250,7 @@ create_person_event:
       selector:
         text:
 
-create_event:
+create_timeline_event:
   name: Create Timeline Event
   description: Create a generic timeline event for any sensor or device
   fields:
