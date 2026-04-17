@@ -118,10 +118,19 @@ UPDATE_EVENT_SCHEMA = vol.Schema({
     vol.Optional("description"): cv.string,
 })
 
-DELETE_EVENT_SCHEMA = vol.Schema({
-    vol.Required("event_id"): cv.string,
+CREATE_EVENT_SCHEMA = vol.Schema({
+    vol.Required("entity_id"): cv.string,
+    vol.Optional("entity_name"): cv.string,
+    vol.Required("event_type"): cv.string,
+    vol.Optional("snapshot_data"): cv.string,
+    vol.Optional("video_clip_data"): cv.string,
+    vol.Optional("video_duration", default=5): cv.positive_int,
+    vol.Optional("labels", default=[]): cv.ensure_list,
+    vol.Optional("area_id"): cv.string,
+    vol.Optional("area_name"): cv.string,
+    vol.Optional("description"): cv.string,
+    vol.Optional("metadata", default={}): dict,
 })
-
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up timeline services."""
@@ -389,25 +398,70 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Failed to update timeline event: %s", e)
             return {"success": False, "error": str(e)}
 
-    async def delete_timeline_event(call: ServiceCall) -> ServiceResponse:
-        """Delete a timeline event."""
-        event_id = call.data["event_id"]
+    async def create_event(call: ServiceCall) -> ServiceResponse:
+        """Create a generic timeline event for any sensor or device."""
+        entity_id = call.data["entity_id"]
+        entity_name = call.data.get("entity_name", entity_id)
+        event_type = call.data["event_type"]
+        snapshot_b64 = call.data.get("snapshot_data")
+        video_b64 = call.data.get("video_clip_data")
+        video_duration = call.data.get("video_duration", 5)
+        labels = _normalize_labels(call.data.get("labels"), default=[])
+        area_id = call.data.get("area_id")
+        area_name = call.data.get("area_name")
+        description = call.data.get("description")
+        metadata = call.data.get("metadata", {})
 
         try:
             manager = await get_timeline_manager(hass)
-            success = await manager.delete_event(event_id)
-            return {"success": success, "event_id": event_id}
+
+            snapshot_data = None
+            if snapshot_b64:
+                try:
+                    snapshot_data = base64.b64decode(snapshot_b64)
+                except Exception as e:
+                    _LOGGER.warning("Failed to decode snapshot data: %s", e)
+
+            video_data = None
+            if video_b64:
+                try:
+                    video_data = base64.b64decode(video_b64)
+                except Exception as e:
+                    _LOGGER.warning("Failed to decode video data: %s", e)
+
+            event = await manager.create_event(
+                entity_id=entity_id,
+                entity_name=entity_name,
+                event_type=event_type,
+                snapshot_data=snapshot_data,
+                video_clip_data=video_data,
+                video_duration=video_duration,
+                area_id=area_id,
+                area_name=area_name,
+                description=description,
+                labels=labels,
+                metadata=metadata,
+            )
+
+            return {
+                "success": True,
+                "event_id": event.event_id,
+                "timestamp": event.timestamp.isoformat(),
+                "has_snapshot": event.snapshot_path is not None,
+                "has_video": event.video_clip_path is not None,
+            }
+
         except Exception as e:
-            _LOGGER.error("Failed to delete timeline event: %s", e)
+            _LOGGER.error("Failed to create event: %s", e)
             return {"success": False, "error": str(e)}
 
     # Register services
     hass.services.async_register(DOMAIN, "capture_snapshot", capture_snapshot, CAPTURE_SNAPSHOT_SCHEMA)
     hass.services.async_register(DOMAIN, "record_video_clip", record_video_clip, RECORD_VIDEO_CLIP_SCHEMA)
     hass.services.async_register(DOMAIN, "create_person_event", create_person_event, CREATE_PERSON_EVENT_SCHEMA)
+    hass.services.async_register(DOMAIN, "create_event", create_event, CREATE_EVENT_SCHEMA)
     hass.services.async_register(DOMAIN, "get_timeline", get_timeline, GET_TIMELINE_SCHEMA)
     hass.services.async_register(DOMAIN, "update_timeline_event", update_timeline_event, UPDATE_EVENT_SCHEMA)
-    hass.services.async_register(DOMAIN, "delete_timeline_event", delete_timeline_event, DELETE_EVENT_SCHEMA)
 
     _LOGGER.info("Timeline services registered")
 

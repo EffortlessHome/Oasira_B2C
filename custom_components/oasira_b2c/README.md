@@ -89,7 +89,8 @@ Timeline services include:
 - create_person_event
 - get_timeline
 - update_timeline_event
-- delete_timeline_event
+- create_event
+
 
 AI services include:
 

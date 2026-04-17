@@ -250,6 +250,76 @@ create_person_event:
       selector:
         text:
 
+create_event:
+  name: Create Timeline Event
+  description: Create a generic timeline event for any sensor or device
+  fields:
+    entity_id:
+      description: The entity ID (sensor, device, etc.) that generated the event
+      example: "sensor.temperature_living_room"
+      required: true
+      selector:
+        entity:
+
+    entity_name:
+      description: Display name for the entity
+      example: "Living Room Temperature"
+      selector:
+        text:
+
+    event_type:
+      description: Type of event (e.g., temperature_alert, humidity_warning, water_leak)
+      example: "temperature_alert"
+      required: true
+      selector:
+        text:
+
+    snapshot_data:
+      description: Base64 encoded snapshot image
+      selector:
+        text:
+
+    video_clip_data:
+      description: Base64 encoded video clip
+      selector:
+        text:
+
+    video_duration:
+      description: Duration of video clip in seconds
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+
+    labels:
+      description: Event labels as a list or comma-separated text
+      example: "alert,high-temp"
+      default: []
+      selector:
+        text:
+          multiple: true
+
+    area_id:
+      description: Area ID for the event
+      selector:
+        area:
+
+    area_name:
+      description: Display name for the area
+      selector:
+        text:
+
+    description:
+      description: Event description
+      selector:
+        text:
+
+    metadata:
+      description: Additional metadata as key-value pairs
+      selector:
+        object:
+
 get_timeline:
   name: Get Timeline
   description: Get timeline events for cameras or areas
@@ -319,18 +389,6 @@ update_timeline_event:
 
     description:
       description: Update event description
-      selector:
-        text:
-
-delete_timeline_event:
-  name: Delete Timeline Event
-  description: Delete a timeline event and its media files
-  target: {}
-  fields:
-    event_id:
-      description: The event ID to delete
-      example: "abc12345"
-      required: true
       selector:
         text:
 

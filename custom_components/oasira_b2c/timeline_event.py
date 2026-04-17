@@ -322,6 +322,71 @@ class TimelineManager:
                 return True
         return False
 
+    async def create_event(
+        self,
+        entity_id: str,
+        entity_name: str,
+        event_type: str,
+        snapshot_data: Optional[bytes] = None,
+        video_clip_data: Optional[bytes] = None,
+        video_duration: int = 5,
+        area_id: Optional[str] = None,
+        area_name: Optional[str] = None,
+        description: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        metadata: Optional[dict] = None,
+    ) -> TimelineEvent:
+        """Create a generic timeline event for any sensor or device."""
+        event_id = str(uuid.uuid4())[:8]
+        timestamp = dt_util.utcnow()
+
+        # Save snapshot if provided
+        snapshot_path = None
+        thumbnail_path = None
+        if snapshot_data:
+            camera_dir = self.get_camera_media_dir(entity_name)
+            snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_snapshot.jpg"
+            snapshot_path = str(camera_dir / snapshot_filename)
+            with open(snapshot_path, "wb") as f:
+                f.write(snapshot_data)
+            thumbnail_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_thumb.jpg"
+            thumbnail_path = str(camera_dir / thumbnail_filename)
+
+        # Save video clip if provided
+        video_clip_path = None
+        if video_clip_data:
+            camera_dir = self.get_camera_media_dir(entity_name)
+            video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_clip.mp4"
+            video_clip_path = str(camera_dir / video_filename)
+            with open(video_clip_path, "wb") as f:
+                f.write(video_clip_data)
+
+        event = TimelineEvent(
+            event_id=event_id,
+            timestamp=timestamp,
+            event_type=event_type,
+            camera_entity_id=entity_id,
+            camera_name=entity_name,
+            area_id=area_id,
+            area_name=area_name,
+            snapshot_path=snapshot_path,
+            video_clip_path=video_clip_path,
+            video_duration=video_duration if video_clip_data else None,
+            thumbnail_path=thumbnail_path,
+            description=description,
+            labels=labels or [],
+            metadata=metadata or {},
+        )
+
+        self._events.append(event)
+        await self._save_events()
+
+        _LOGGER.info(
+            "Created timeline event %s for entity %s: %s",
+            event_id, entity_name, event_type
+        )
+        return event
+
     async def delete_event(self, event_id: str) -> bool:
         """Delete a timeline event and its media files."""
         for i, event in enumerate(self._events):
