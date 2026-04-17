@@ -141,68 +141,122 @@ class OllamaClient:
         Returns:
             Chat response dictionary
         """
-        # Use Home Assistant's async client to avoid SSL certificate issues
-        client = get_async_client(self.hass)
-        
-        # Try OpenAI-compatible API first (Ollama v0.5+)
+        # Prefer endpoint discovered by check_connection, and only fall back
+        # between APIs when the endpoint itself is missing.
+        if self._use_compat_api:
+            try:
+                return await self._chat_openai_compat(
+                    model=model,
+                    messages=messages,
+                    stream=stream,
+                    timeout=timeout,
+                    **kwargs,
+                )
+            except httpx.HTTPStatusError as err:
+                if not self._is_missing_endpoint_error(err):
+                    raise
+                return await self._chat_legacy(
+                    model=model,
+                    messages=messages,
+                    stream=stream,
+                    timeout=timeout,
+                    **kwargs,
+                )
+
         try:
-            payload: dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-                "stream": stream,  # Respect the stream parameter
-            }
-            
-            # Map kwargs to OpenAI-compatible format
-            if "temperature" in kwargs and kwargs["temperature"] is not None:
-                payload["temperature"] = kwargs["temperature"]
-            if "top_p" in kwargs and kwargs["top_p"] is not None:
-                payload["top_p"] = kwargs["top_p"]
-            if "max_tokens" in kwargs and kwargs["max_tokens"] is not None:
-                payload["max_tokens"] = kwargs["max_tokens"]
-            if "num_ctx" in kwargs and kwargs["num_ctx"] is not None:
-                payload["num_ctx"] = kwargs["num_ctx"]
-            if "stop" in kwargs and kwargs["stop"] is not None:
-                payload["stop"] = kwargs["stop"]
-            
-            # Use provided timeout or fall back to client's default timeout
-            request_timeout = timeout if timeout is not None else self.timeout
-            response = await client.post(
-                f"{self.base_url}/v1/chat/completions",
-                json=payload,
-                timeout=httpx.Timeout(request_timeout),
+            return await self._chat_legacy(
+                model=model,
+                messages=messages,
+                stream=stream,
+                timeout=timeout,
+                **kwargs,
             )
-            response.raise_for_status()
-            
-            # Convert OpenAI format back to Ollama format for compatibility
-            result = response.json()
-            return self._convert_to_ollama_format(result)
-            
-        except httpx.HTTPStatusError:
-            # Fall back to legacy Ollama API
-            payload: dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-                "stream": stream,
-            }
-            
-            # Add Ollama-specific options
-            ollama_options = {}
-            for key, value in kwargs.items():
-                if value is not None and value != 0:
-                    ollama_options[key] = value
-            
-            if ollama_options:
-                payload["options"] = ollama_options
-            
-            # Use provided timeout or fall back to client's default timeout
-            request_timeout = timeout if timeout is not None else self.timeout
-            response = await client.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=httpx.Timeout(request_timeout),
+        except httpx.HTTPStatusError as err:
+            if not self._is_missing_endpoint_error(err):
+                raise
+            return await self._chat_openai_compat(
+                model=model,
+                messages=messages,
+                stream=stream,
+                timeout=timeout,
+                **kwargs,
             )
-            response.raise_for_status()
-            return response.json()
+
+    @staticmethod
+    def _is_missing_endpoint_error(err: httpx.HTTPStatusError) -> bool:
+        """Return True when server reports endpoint not available."""
+        return err.response is not None and err.response.status_code in (404, 405)
+
+    async def _chat_openai_compat(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        stream: bool,
+        timeout: float | None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Send chat request using OpenAI-compatible endpoint."""
+        client = get_async_client(self.hass)
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": stream,
+        }
+
+        if "temperature" in kwargs and kwargs["temperature"] is not None:
+            payload["temperature"] = kwargs["temperature"]
+        if "top_p" in kwargs and kwargs["top_p"] is not None:
+            payload["top_p"] = kwargs["top_p"]
+        if "max_tokens" in kwargs and kwargs["max_tokens"] is not None:
+            payload["max_tokens"] = kwargs["max_tokens"]
+        if "num_ctx" in kwargs and kwargs["num_ctx"] is not None:
+            payload["num_ctx"] = kwargs["num_ctx"]
+        if "stop" in kwargs and kwargs["stop"] is not None:
+            payload["stop"] = kwargs["stop"]
+
+        request_timeout = timeout if timeout is not None else self.timeout
+        response = await client.post(
+            f"{self.base_url}/v1/chat/completions",
+            json=payload,
+            timeout=httpx.Timeout(request_timeout),
+        )
+        response.raise_for_status()
+        return self._convert_to_ollama_format(response.json())
+
+    async def _chat_legacy(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        stream: bool,
+        timeout: float | None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Send chat request using legacy Ollama endpoint."""
+        client = get_async_client(self.hass)
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": stream,
+        }
+
+        ollama_options = {}
+        for key, value in kwargs.items():
+            if value is not None and value != 0:
+                ollama_options[key] = value
+
+        if ollama_options:
+            payload["options"] = ollama_options
+
+        request_timeout = timeout if timeout is not None else self.timeout
+        response = await client.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+            timeout=httpx.Timeout(request_timeout),
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def chat_stream(
         self,
@@ -220,12 +274,22 @@ class OllamaClient:
         Returns:
             HTTP response with streaming data
         """
-        # Try OpenAI-compatible API first (Ollama v0.5+)
+        # Prefer endpoint discovered by check_connection, and only fall back
+        # when endpoint is missing.
+        if self._use_compat_api:
+            try:
+                return await self._chat_stream_openai_compat(model, messages, **kwargs)
+            except httpx.HTTPStatusError as err:
+                if not self._is_missing_endpoint_error(err):
+                    raise
+                return await self._chat_stream_legacy(model, messages, **kwargs)
+
         try:
-            return await self._chat_stream_openai_compat(model, messages, **kwargs)
-        except httpx.HTTPStatusError:
-            # Fall back to legacy Ollama API
             return await self._chat_stream_legacy(model, messages, **kwargs)
+        except httpx.HTTPStatusError as err:
+            if not self._is_missing_endpoint_error(err):
+                raise
+            return await self._chat_stream_openai_compat(model, messages, **kwargs)
 
     async def _chat_stream_openai_compat(
         self,

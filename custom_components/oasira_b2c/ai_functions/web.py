@@ -25,9 +25,41 @@ from homeassistant.helpers import config_validation as cv, llm
 from homeassistant.helpers.template import Template
 
 from ..ai_const import CONF_PAYLOAD_TEMPLATE
+from ..ai_exceptions import InvalidFunction
 from .base import Function
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _normalize_template_value(value: Any, function_type: str) -> str:
+    """Convert stored selector/template values to raw template strings."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Template):
+        return value.template
+    if hasattr(value, "template") and isinstance(value.template, str):
+        return value.template
+    if isinstance(value, dict):
+        for key in (
+            "template",
+            "value_template",
+            "payload_template",
+            "resource_template",
+            "resource",
+            "value",
+            "name",
+        ):
+            template_value = value.get(key)
+            if isinstance(template_value, str):
+                return template_value
+    raise InvalidFunction(function_type)
+
+
+def _normalize_sensor_templates(sensor_config: dict[str, Any], function_type: str) -> None:
+    """Normalize template-backed fields within scrape sensor config."""
+    for key in (CONF_NAME, CONF_VALUE_TEMPLATE):
+        if key in sensor_config and sensor_config[key] is not None:
+            sensor_config[key] = _normalize_template_value(sensor_config[key], function_type)
 
 
 def get_rest_data(
@@ -70,6 +102,20 @@ class RestFunction(Function):
             )
         )
 
+    def validate_schema(self, function_config: dict[str, Any]) -> dict[str, Any]:
+        """Validate REST config after normalizing template-backed fields."""
+        config = dict(function_config)
+
+        for key in (CONF_VALUE_TEMPLATE, CONF_PAYLOAD_TEMPLATE, CONF_RESOURCE_TEMPLATE):
+            if key in config and config[key] is not None:
+                config[key] = _normalize_template_value(config[key], "rest")
+
+        try:
+            return super().validate_schema(config)
+        except vol.Error as err:
+            _LOGGER.error("REST function validation error: %s", err)
+            raise InvalidFunction("rest") from err
+
     async def execute(
         self,
         hass: HomeAssistant,
@@ -107,6 +153,32 @@ class ScrapeFunction(Function):
                 }
             )
         )
+
+    def validate_schema(self, function_config: dict[str, Any]) -> dict[str, Any]:
+        """Validate scrape config after normalizing template-backed fields."""
+        config = dict(function_config)
+
+        for key in (CONF_VALUE_TEMPLATE, CONF_PAYLOAD_TEMPLATE, CONF_RESOURCE_TEMPLATE):
+            if key in config and config[key] is not None:
+                config[key] = _normalize_template_value(config[key], "scrape")
+
+        sensor_configs = config.get("sensor")
+        if isinstance(sensor_configs, list):
+            normalized_sensors = []
+            for sensor_config in sensor_configs:
+                if isinstance(sensor_config, dict):
+                    normalized_sensor = dict(sensor_config)
+                    _normalize_sensor_templates(normalized_sensor, "scrape")
+                    normalized_sensors.append(normalized_sensor)
+                else:
+                    normalized_sensors.append(sensor_config)
+            config["sensor"] = normalized_sensors
+
+        try:
+            return super().validate_schema(config)
+        except vol.Error as err:
+            _LOGGER.error("Scrape function validation error: %s", err)
+            raise InvalidFunction("scrape") from err
 
     async def execute(
         self,

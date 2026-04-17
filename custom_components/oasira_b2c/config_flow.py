@@ -310,12 +310,17 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for Oasira."""
 
     def __init__(self, config_entry):
-        """Initialize options flow."""
-        self.config_entry = config_entry
+        """Initialize options flow.
+        
+        Note: config_entry is passed by the framework and set as a property.
+        We accept it here to avoid TypeError but don't store it manually.
+        """
+        pass
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         if user_input is not None:
+            # For OptionsFlow, data is automatically stored as entry.options
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(

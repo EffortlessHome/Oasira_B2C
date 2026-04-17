@@ -8,7 +8,6 @@ from typing import Any
 
 import httpx
 import voluptuous as vol
-import yaml
 
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -40,14 +39,12 @@ from .ai_const import (
     CONF_CHAT_MODEL,
     CONF_CONTEXT_THRESHOLD,
     CONF_CONTEXT_TRUNCATE_STRATEGY,
-    CONF_FUNCTION_TOOLS,
     CONF_MAX_FUNCTION_CALLS_PER_CONVERSATION,
     CONF_MAX_TOKENS,
     CONF_MODEL,
     CONF_NUM_CTX,
     CONF_PROMPT,
     CONF_SHORTEN_TOOL_CALL_ID,
-    CONF_SKILLS,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_TOP_P,
@@ -58,7 +55,6 @@ from .ai_const import (
     DEFAULT_BACKUP_MODEL,
     DEFAULT_CHAT_MODEL,
     DEFAULT_CONF_BASE_URL,
-    DEFAULT_CONF_FUNCTION_TOOLS,
     DEFAULT_CONTEXT_THRESHOLD,
     DEFAULT_CONTEXT_TRUNCATE_STRATEGY,
     DEFAULT_CONVERSATION_NAME,
@@ -78,7 +74,6 @@ from .ai_const import (
 # Store for available models during config flow
 CONFIG_FLOW_MODELS: dict[str, list[str]] = {}
 from .ai_helpers import OllamaClient, get_authenticated_client
-from .ai_skills import SkillManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,10 +95,6 @@ STEP_MODEL_DATA_SCHEMA = vol.Schema(
     }
 )
 
-DEFAULT_CONF_FUNCTION_TOOLS_STR = yaml.dump(
-    DEFAULT_CONF_FUNCTION_TOOLS, sort_keys=False
-)
-
 DEFAULT_OPTIONS = types.MappingProxyType(
     {
         CONF_PROMPT: DEFAULT_PROMPT,
@@ -113,7 +104,6 @@ DEFAULT_OPTIONS = types.MappingProxyType(
         CONF_MAX_FUNCTION_CALLS_PER_CONVERSATION: DEFAULT_MAX_FUNCTION_CALLS_PER_CONVERSATION,
         CONF_TOP_P: DEFAULT_TOP_P,
         CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
-        CONF_FUNCTION_TOOLS: DEFAULT_CONF_FUNCTION_TOOLS_STR,
         CONF_CONTEXT_THRESHOLD: DEFAULT_CONTEXT_THRESHOLD,
         CONF_CONTEXT_TRUNCATE_STRATEGY: DEFAULT_CONTEXT_TRUNCATE_STRATEGY,
         CONF_SHORTEN_TOOL_CALL_ID: DEFAULT_SHORTEN_TOOL_CALL_ID,
@@ -156,7 +146,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> OllamaCli
 async def get_available_models(hass: HomeAssistant, base_url: str) -> list[str]:
     """Get list of available models from Ollama."""
     try:
-        client = OllamaClient(base_url=base_url, timeout=30.0)
+        client = OllamaClient(hass=hass, base_url=base_url, timeout=30.0)
         models = await client.list_models()
         # Extract model names from the response
         model_names = []
@@ -174,6 +164,23 @@ async def get_available_models(hass: HomeAssistant, base_url: str) -> list[str]:
     except Exception as err:
         _LOGGER.warning("Failed to get models from Ollama: %s", err)
         return []
+
+
+def _build_model_selector(default_value: str, models: list[str]) -> SelectSelector | TextSelector:
+    """Build a model selector with discovered models when available."""
+    if not models:
+        return TextSelector()
+
+    options = list(dict.fromkeys(models))
+    if default_value and default_value not in options:
+        options.insert(0, default_value)
+
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=[SelectOptionDict(value=model, label=model) for model in options],
+            mode=SelectSelectorMode.DROPDOWN,
+        )
+    )
 
 
 class ExtendedOpenAIConversationConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -324,6 +331,147 @@ class ExtendedOpenAIConversationConfigFlow(ConfigFlow, domain=DOMAIN):
             ],
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration of the integration."""
+        config_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        
+        if config_entry is None:
+            return self.async_abort(reason="reconfigure_failed")
+
+        return await self.async_step_options(user_input)
+
+    async def async_step_options(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle options flow to reconfigure base URL and model."""
+        config_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        
+        if config_entry is None:
+            return self.async_abort(reason="reconfigure_failed")
+
+        if user_input is None:
+            # Show initial options form with current base URL
+            current_base_url = config_entry.data.get(CONF_BASE_URL, DEFAULT_CONF_BASE_URL)
+            
+            schema = vol.Schema({
+                vol.Optional(CONF_BASE_URL, default=current_base_url): str,
+            })
+            
+            return self.async_show_form(
+                step_id="options",
+                data_schema=schema,
+                description_placeholders={
+                    "current_base_url": current_base_url,
+                },
+            )
+
+        # Validate new base URL
+        new_base_url = user_input.get(CONF_BASE_URL, DEFAULT_CONF_BASE_URL)
+        errors = {}
+
+        try:
+            await validate_input(self.hass, {CONF_BASE_URL: new_base_url})
+        except HomeAssistantError as err:
+            errors["base"] = str(err)
+            
+            schema = vol.Schema({
+                vol.Optional(CONF_BASE_URL, default=new_base_url): str,
+            })
+            
+            return self.async_show_form(
+                step_id="options",
+                data_schema=schema,
+                errors=errors,
+            )
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception during base URL validation")
+            errors["base"] = "unknown"
+
+        if errors:
+            schema = vol.Schema({
+                vol.Optional(CONF_BASE_URL, default=new_base_url): str,
+            })
+            
+            return self.async_show_form(
+                step_id="options",
+                data_schema=schema,
+                errors=errors,
+            )
+
+        # Store new base URL and fetch available models
+        self._base_url = new_base_url
+        models = await get_available_models(self.hass, self._base_url)
+        CONFIG_FLOW_MODELS[self.flow_id] = models
+
+        if models:
+            # Show model selection step
+            return await self.async_step_options_model()
+        else:
+            # No models found, just update base URL
+            _LOGGER.warning("No models found on Ollama at %s", self._base_url)
+            return self.async_abort_entry_configured()
+
+    async def async_step_options_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle model selection in options flow."""
+        config_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        
+        if config_entry is None:
+            return self.async_abort(reason="reconfigure_failed")
+
+        models = CONFIG_FLOW_MODELS.get(self.flow_id, [])
+        
+        if not models:
+            return self.async_abort_entry_configured()
+        
+        if user_input is not None:
+            selected_model = user_input.get(CONF_MODEL)
+            
+            # Update config entry data with new base URL and model
+            self.hass.config_entries.async_update_entry(
+                config_entry,
+                data={
+                    **config_entry.data,
+                    CONF_BASE_URL: self._base_url,
+                    CONF_MODEL: selected_model,
+                }
+            )
+            
+            await self.hass.config_entries.async_reload(config_entry.entry_id)
+            
+            return self.async_abort(reason="reconfigure_successful")
+        
+        # Create schema with available models
+        schema = vol.Schema({
+            vol.Required(CONF_MODEL): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        SelectOptionDict(value=model, label=model)
+                        for model in models
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        })
+        
+        return self.async_show_form(
+            step_id="options_model",
+            data_schema=schema,
+            description_placeholders={
+                "base_url": self._base_url,
+                "model_count": str(len(models)),
+            }
+        )
+
     @classmethod
     @callback
     def async_get_supported_subentry_types(
@@ -341,7 +489,6 @@ class ExtendedOpenAISubentryFlowHandler(ConfigSubentryFlow):
 
     options: dict[str, Any]
     _temp_data: dict[str, Any] | None = None
-    _available_skills: list[dict[str, Any]] | None = None
     _available_models: list[str] = []
 
     @property
@@ -371,9 +518,10 @@ class ExtendedOpenAISubentryFlowHandler(ConfigSubentryFlow):
         if self._get_entry().state != ConfigEntryState.LOADED:
             return self.async_abort(reason="entry_not_loaded")
 
-        # Load available skills
-        if self._available_skills is None:
-            self._available_skills = await self._async_get_skills()
+        # Load available models from configured Ollama base URL
+        if not self._available_models:
+            base_url = self._get_entry().data.get(CONF_BASE_URL, DEFAULT_CONF_BASE_URL)
+            self._available_models = await get_available_models(self.hass, base_url)
 
         if user_input is not None:
             # Check if advanced options is enabled
@@ -397,7 +545,10 @@ class ExtendedOpenAISubentryFlowHandler(ConfigSubentryFlow):
                 data=user_input,
             )
 
-        schema = self.openai_config_option_schema(self.options, self._available_skills)
+        schema = self.openai_config_option_schema(
+            self.options,
+            self._available_models,
+        )
 
         if self._is_new:
             schema = {
@@ -474,27 +625,16 @@ class ExtendedOpenAISubentryFlowHandler(ConfigSubentryFlow):
             ),
         )
 
-    async def _async_get_skills(self) -> list[dict[str, Any]]:
-        """Load available skills using SkillManager."""
-        skill_manager = await SkillManager.async_get_instance(self.hass)
-        return [
-            {
-                "name": skill.name,
-                "description": skill.description,
-            }
-            for skill in skill_manager.get_all_skills()
-        ]
-
     def openai_config_option_schema(
-        self, options: dict[str, Any], skills: list[dict[str, Any]] | None = None
+        self,
+        options: dict[str, Any],
+        models: list[str] | None = None,
     ) -> dict:
         """Return a schema for Ollama completion options."""
-        # If creating a new subentry and no skills in options, default to all loaded skills
-        default_skills: list[str] = []
-        if self._is_new and CONF_SKILLS not in options and skills:
-            default_skills = [skill["name"] for skill in skills]
-
-        current_skills = options.get(CONF_SKILLS, default_skills)
+        available_models = models or []
+        current_model = options.get(CONF_MODEL, DEFAULT_MODEL)
+        current_backup_model = options.get(CONF_BACKUP_MODEL, DEFAULT_BACKUP_MODEL)
+        current_chat_model = options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL)
 
         schema: dict = {
             vol.Optional(
@@ -504,15 +644,15 @@ class ExtendedOpenAISubentryFlowHandler(ConfigSubentryFlow):
             vol.Optional(
                 CONF_MODEL,
                 default=DEFAULT_MODEL,
-            ): TextSelector(),
+            ): _build_model_selector(current_model, available_models),
             vol.Optional(
                 CONF_BACKUP_MODEL,
                 default=DEFAULT_BACKUP_MODEL,
-            ): TextSelector(),
+            ): _build_model_selector(current_backup_model, available_models),
             vol.Optional(
                 CONF_CHAT_MODEL,
                 default=DEFAULT_CHAT_MODEL,
-            ): TextSelector(),
+            ): _build_model_selector(current_chat_model, available_models),
             vol.Optional(
                 CONF_MAX_TOKENS,
                 default=DEFAULT_MAX_TOKENS,
@@ -521,23 +661,6 @@ class ExtendedOpenAISubentryFlowHandler(ConfigSubentryFlow):
                 CONF_MAX_FUNCTION_CALLS_PER_CONVERSATION,
                 default=DEFAULT_MAX_FUNCTION_CALLS_PER_CONVERSATION,
             ): int,
-            vol.Optional(CONF_SKILLS, default=current_skills): SelectSelector(
-                SelectSelectorConfig(
-                    options=[
-                        SelectOptionDict(
-                            value=skill["name"],
-                            label=skill["name"],
-                        )
-                        for skill in (skills or [])
-                    ],
-                    mode=SelectSelectorMode.DROPDOWN,
-                    multiple=True,
-                )
-            ),
-            vol.Optional(
-                CONF_FUNCTION_TOOLS,
-                default=DEFAULT_CONF_FUNCTION_TOOLS_STR,
-            ): TemplateSelector(),
             vol.Optional(
                 CONF_CONTEXT_THRESHOLD,
                 default=DEFAULT_CONTEXT_THRESHOLD,
@@ -560,14 +683,6 @@ class ExtendedOpenAISubentryFlowHandler(ConfigSubentryFlow):
             ): BooleanSelector(),
         }
 
-        # Remove skills field if no skills available
-        if not skills:
-            schema = {
-                key: value
-                for key, value in schema.items()
-                if not (isinstance(key, vol.Optional) and key.schema == CONF_SKILLS)
-            }
-
         return schema
 
 
@@ -576,6 +691,7 @@ class ExtendedOpenAIAITaskSubentryFlowHandler(ConfigSubentryFlow):
 
     options: dict[str, Any]
     _temp_data: dict[str, Any] | None = None
+    _available_models: list[str] = []
 
     @property
     def _is_new(self) -> bool:
@@ -603,6 +719,11 @@ class ExtendedOpenAIAITaskSubentryFlowHandler(ConfigSubentryFlow):
         # Abort if entry is not loaded
         if self._get_entry().state != ConfigEntryState.LOADED:
             return self.async_abort(reason="entry_not_loaded")
+
+        # Load available models from configured Ollama base URL
+        if not self._available_models:
+            base_url = self._get_entry().data.get(CONF_BASE_URL, DEFAULT_CONF_BASE_URL)
+            self._available_models = await get_available_models(self.hass, base_url)
 
         if user_input is not None:
             # Check if advanced options is enabled
@@ -636,11 +757,17 @@ class ExtendedOpenAIAITaskSubentryFlowHandler(ConfigSubentryFlow):
                 vol.Optional(
                     CONF_MODEL,
                     default=DEFAULT_MODEL,
-                ): TextSelector(),
+                ): _build_model_selector(
+                    self.options.get(CONF_MODEL, DEFAULT_MODEL),
+                    self._available_models,
+                ),
                 vol.Optional(
                     CONF_CHAT_MODEL,
                     default=DEFAULT_CHAT_MODEL,
-                ): TextSelector(),
+                ): _build_model_selector(
+                    self.options.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
+                    self._available_models,
+                ),
                 vol.Optional(
                     CONF_MAX_TOKENS,
                     default=DEFAULT_MAX_TOKENS,

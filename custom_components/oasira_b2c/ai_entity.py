@@ -157,9 +157,24 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
     @property
     def _client(self) -> OllamaClient:
         """Return the Ollama client."""
-        if hasattr(self.entry, "oasira_ai_runtime_data"):
-            return self.entry.oasira_ai_runtime_data
-        return self.entry.runtime_data
+        # Preferred client location for this integration.
+        merged_client = getattr(self.entry, "oasira_ai_runtime_data", None)
+        if merged_client is not None:
+            return merged_client
+
+        # Backward-compatibility for integrations/HA versions using runtime_data.
+        runtime_client = getattr(self.entry, "runtime_data", None)
+        if runtime_client is not None:
+            return runtime_client
+
+        # Fallback to integration-level storage to support HA versions where
+        # ConfigEntry has no runtime_data attribute.
+        domain_data = self.hass.data.get(DOMAIN, {}) if self.hass else {}
+        hass_client = domain_data.get("ai_runtime_client")
+        if hass_client is not None:
+            return hass_client
+
+        raise AttributeError("No Oasira AI runtime client is available")
 
     async def _async_handle_chat_log(
         self,

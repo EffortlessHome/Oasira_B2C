@@ -130,7 +130,7 @@ _LOGGER = logging.getLogger(__name__)
 GOOGLE_OAUTH_URL = "https://oauth2.googleapis.com/token"
 FIREBASE_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 FCM_URL = "https://fcm.googleapis.com/v1/projects/oasira-oauth/messages:send"
-PUSH_TOKEN_STORAGE_KEY = "Oasira_push_tokens"
+PUSH_TOKEN_STORAGE_KEY = "oasira_push_tokens"
 PUSH_TOKEN_STORAGE_VERSION = 1
 
 
@@ -569,8 +569,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except OasiraAPIError as e:
             _LOGGER.error("Failed to fetch customer/system data: %s", e)
             if "401" in str(e):
-                _LOGGER.info("Token expired, requesting reauth")
-                await hass.config_entries.async_request_reauth(hass, entry)
+                _LOGGER.info("Token expired, triggering reauth flow")
+                # Trigger reauth flow - async_request_reauth was added in HA 2024.6
+                # For older versions, use entry.async_start_reauth (instance method)
+                if hasattr(hass.config_entries, "async_request_reauth"):
+                    reauth_result = hass.config_entries.async_request_reauth(hass, entry)
+                else:
+                    reauth_result = entry.async_start_reauth(hass)
+
+                # Older/newer HA variants may expose sync or async reauth APIs.
+                if asyncio.iscoroutine(reauth_result):
+                    await reauth_result
                 return False
             raise HomeAssistantError(
                 f"Failed to fetch customer/system data: {e}"
@@ -594,7 +603,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             base_url=ollama_base_url,
             timeout=entry.options.get(AI_CONF_TIMEOUT, AI_DEFAULT_TIMEOUT),
         )
+        hass.data.setdefault(DOMAIN, {})["ai_runtime_client"] = entry.oasira_ai_runtime_data
     except Exception as ai_err:
+        hass.data.setdefault(DOMAIN, {}).pop("ai_runtime_client", None)
         _LOGGER.warning("Failed to initialize merged AI client: %s", ai_err)
 
     await hass.config_entries.async_forward_entry_setups(
@@ -616,9 +627,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_setup_notification_platform(hass)
 
     # Unregister if already registered
-    webhook.async_unregister(hass, "Oasira_push_token")
-    webhook.async_unregister(hass, "Oasira_remove_push_token")
-    webhook.async_unregister(hass, "Oasira_location_update")
+    webhook.async_unregister(hass, "oasira_push_token")
+    webhook.async_unregister(hass, "oasira_remove_push_token")
+    webhook.async_unregister(hass, "oasira_location_update")
 
     security_webhook = SecurityAlarmWebhook(hass)
     await SecurityAlarmWebhook.async_setup_webhook(security_webhook)
@@ -630,33 +641,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass,
         DOMAIN,
         "Oasira Push Token",
-        "Oasira_push_token",
-        handle_Oasira_push_token_webhook,
+        "oasira_push_token",
+        handle_oasira_push_token_webhook,
     )
 
-    _LOGGER.info("[Oasira] Webhook registered: %s", "Oasira_push_token")
+    _LOGGER.info("[Oasira] Webhook registered: %s", "oasira_push_token")
 
     webhook.async_register(
         hass,
         DOMAIN,
         "Oasira Remove Push Token",
-        "Oasira_remove_push_token",
-        handle_Oasira_remove_push_token_webhook,
+        "oasira_remove_push_token",
+        handle_oasira_remove_push_token_webhook,
     )
 
     _LOGGER.info(
         "[Oasira] Webhook registered: %s",
-        "Oasira_remove_push_token",
+        "oasira_remove_push_token",
     )
 
-    webhook_id = "Oasira_location_update"
+    webhook_id = "oasira_location_update"
 
     webhook.async_register(
         hass,
         DOMAIN,
         "Oasira Location Update",
         webhook_id,
-        handle_Oasira_location_update,
+        handle_oasira_location_update,
     )
 
     _LOGGER.info("[Oasira] Webhook registered: %s", webhook_id)
@@ -834,9 +845,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Unregister the notify service
     hass.services.async_remove("Oasira", "notify")
 
-    webhook.async_unregister(hass, "Oasira_push_token")
-    webhook.async_unregister(hass, "Oasira_remove_push_token")
-    webhook.async_unregister(hass, "Oasira_location_update")
+    webhook.async_unregister(hass, "oasira_push_token")
+    webhook.async_unregister(hass, "oasira_remove_push_token")
+    webhook.async_unregister(hass, "oasira_location_update")
 
     return True
 
@@ -1187,7 +1198,7 @@ async def handle_deploy_latest_config(call: ServiceCall) -> None:
 # }
 
 
-async def handle_Oasira_push_token_webhook(hass, webhook_id, request):
+async def handle_oasira_push_token_webhook(hass, webhook_id, request):
     """Handle incoming Oasira Push Token webhook (device token)."""
 
     _LOGGER.info("[Oasira] 🔔 Handling push token webhook")
@@ -1244,7 +1255,7 @@ async def handle_Oasira_push_token_webhook(hass, webhook_id, request):
     return web.json_response({"status": "success", "message": "Token registered"})
 
 
-async def handle_Oasira_remove_push_token_webhook(hass, webhook_id, request):
+async def handle_oasira_remove_push_token_webhook(hass, webhook_id, request):
     """Handle incoming Oasira remove push token webhook."""
 
     _LOGGER.info("[Oasira] 🔔 Handling remove push token webhook")
@@ -1300,7 +1311,7 @@ async def handle_Oasira_remove_push_token_webhook(hass, webhook_id, request):
 #    "sdk_int": 33
 #  }
 # }
-async def handle_Oasira_location_update(hass, webhook_id, request):
+async def handle_oasira_location_update(hass, webhook_id, request):
     """Register Oasira location update service."""
 
     _LOGGER.info("[Oasira] 📍 Handling location update webhook")

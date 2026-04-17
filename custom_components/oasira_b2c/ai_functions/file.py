@@ -18,6 +18,7 @@ from ..ai_const import (
     DEFAULT_WORKING_DIRECTORY,
     FILE_READ_SIZE_LIMIT,
 )
+from ..ai_exceptions import InvalidFunction
 from .base import Function
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,6 +26,42 @@ _LOGGER = logging.getLogger(__name__)
 
 class FileFunction(Function):
     """Base class for file-related functions."""
+
+    @staticmethod
+    def _normalize_template_value(value: Any) -> str:
+        """Convert stored selector/template values to raw template strings."""
+        if isinstance(value, str):
+            return value
+        if hasattr(value, "template") and isinstance(value.template, str):
+            return value.template
+        if isinstance(value, dict):
+            for key in ("template", "value_template", "path", "content", "value"):
+                template_value = value.get(key)
+                if isinstance(template_value, str):
+                    return template_value
+        raise InvalidFunction("file")
+
+    def validate_schema(self, function_config: dict[str, Any]) -> dict[str, Any]:
+        """Validate file config after normalizing template-backed fields."""
+        config = dict(function_config)
+
+        for key in ("path", "content", "old_text", "new_text"):
+            if key in config:
+                config[key] = self._normalize_template_value(config[key])
+
+        if "allow_dir" in config and config["allow_dir"] is not None:
+            allow_dirs = config["allow_dir"]
+            if not isinstance(allow_dirs, list):
+                allow_dirs = [allow_dirs]
+            config["allow_dir"] = [
+                self._normalize_template_value(allow_dir) for allow_dir in allow_dirs
+            ]
+
+        try:
+            return super().validate_schema(config)
+        except vol.Error as err:
+            _LOGGER.error("File function validation error: %s", err)
+            raise InvalidFunction(config.get("type", "file")) from err
 
     def get_working_dir(self, hass: HomeAssistant) -> Path:
         """Get the default working directory for file operations."""

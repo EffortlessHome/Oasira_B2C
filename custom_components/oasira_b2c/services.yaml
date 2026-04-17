@@ -45,7 +45,6 @@ create_alert:
         text:
     alert_description:
       description: Details about the alert
-      example: "High humidity detected in basement"
       required: true
       selector:
         text:
@@ -64,7 +63,6 @@ create_alert:
 # Confirm pending Oasira alarm
 confirm_pending_alarm:
   target: {}
-
 # Cancel Oasira alarm
 cancel_alarm:
   target: {}
@@ -73,7 +71,6 @@ cancel_alarm:
 get_alarm_status:
   target: {}
 
-# Update entity area
 update_entity:
   target: {}
   fields:
@@ -99,12 +96,14 @@ deploy_latest_config:
 capture_snapshot:
   name: Capture Snapshot
   description: Capture a snapshot from a camera and save to timeline
-  target: {}
+  target:
+    entity:
+      domain:
+        - camera
   fields:
     camera_entity_id:
       description: The camera entity to capture from
       example: "camera.front_door"
-      required: true
       selector:
         entity:
           domain:
@@ -143,12 +142,14 @@ capture_snapshot:
 record_video_clip:
   name: Record Video Clip
   description: Record a short video clip from a camera and save to timeline
-  target: {}
+  target:
+    entity:
+      domain:
+        - camera
   fields:
     camera_entity_id:
       description: The camera entity to record from
       example: "camera.front_door"
-      required: true
       selector:
         entity:
           domain:
@@ -183,7 +184,6 @@ record_video_clip:
 create_person_event:
   name: Create Person Event
   description: Create a timeline event with person detection, snapshot and/or video
-  target: {}
   fields:
     camera_entity_id:
       description: The camera entity ID
@@ -228,7 +228,7 @@ create_person_event:
           max: 1.0
 
     labels:
-      description: Detection labels
+      description: Detection labels as a list or comma-separated text (for example person,visitor)
       example: ["person", "visitor"]
       default: ["person"]
       selector:

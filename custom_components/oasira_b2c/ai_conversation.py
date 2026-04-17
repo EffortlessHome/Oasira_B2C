@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
 
 import httpx
-import yaml
 
 from homeassistant.components import conversation
 from homeassistant.components.conversation import (
@@ -28,21 +26,14 @@ from homeassistant.helpers.chat_session import async_get_chat_session
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .ai_const import (
-    CONF_FUNCTION_TOOLS,
     CONF_PROMPT,
-    CONF_SKILLS,
-    DEFAULT_CONF_FUNCTION_TOOLS,
     DEFAULT_CONVERSATION_NAME,
     DEFAULT_PROMPT,
-    DEFAULT_WORKING_DIRECTORY,
     DOMAIN,
     EVENT_CONVERSATION_FINISHED,
 )
 from .ai_entity import ExtendedOpenAIBaseLLMEntity
-from .ai_exceptions import FunctionLoadFailed, FunctionNotFound, InvalidFunction
-from .ai_functions import get_function
 from .ai_helpers import get_exposed_entities
-from .ai_skills import Skill, SkillManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,8 +60,6 @@ async def async_setup_entry(
                 title=DEFAULT_CONVERSATION_NAME,
                 data={
                     CONF_PROMPT: DEFAULT_PROMPT,
-                    CONF_FUNCTION_TOOLS: DEFAULT_CONF_FUNCTION_TOOLS,
-                    CONF_SKILLS: [],
                 },
             )
         ]
@@ -95,33 +84,16 @@ class ExtendedOpenAIAgentEntity(
 
     _attr_supports_streaming = True
     _attr_supported_features = ConversationEntityFeature.CONTROL
-    skill_manager: SkillManager
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
         """Return a list of supported languages."""
         return MATCH_ALL
 
-    @property
-    def skills(self) -> list[str]:
-        """Get the enabled skills list for this entity."""
-        return self.subentry.data.get(CONF_SKILLS, []) or []
-
     async def async_added_to_hass(self) -> None:
         """When entity is added to Home Assistant."""
         await super().async_added_to_hass()
         conversation.async_set_agent(self.hass, self.entry, self)
-
-        # Calculate skills directory based on working directory
-        working_dir = DEFAULT_WORKING_DIRECTORY
-        if Path(working_dir).is_absolute():
-            skills_dir = Path(working_dir) / "skills"
-        else:
-            skills_dir = Path(self.hass.config.config_dir) / working_dir / "skills"
-
-        self.skill_manager = await SkillManager.async_get_instance(
-            self.hass, user_skills_dir=str(skills_dir)
-        )
 
     async def async_will_remove_from_hass(self) -> None:
         """When entity will be removed from Home Assistant."""
@@ -148,9 +120,6 @@ class ExtendedOpenAIAgentEntity(
         # Get exposed entities for function tools
         exposed_entities = self._get_exposed_entities()
 
-        # Get function tools
-        function_tools = self._get_function_tools()
-
         # Build custom prompt with exposed entities
         system_prompt = self._build_system_prompt(
             exposed_entities, llm_context, user_input
@@ -164,7 +133,7 @@ class ExtendedOpenAIAgentEntity(
         try:
             await self._async_handle_chat_log(
                 chat_log,
-                function_tools=function_tools,
+                function_tools=[],
                 exposed_entities=exposed_entities,
                 llm_context=llm_context,
             )
@@ -221,7 +190,7 @@ class ExtendedOpenAIAgentEntity(
         llm_context: llm.LLMContext,
         user_input: ConversationInput,
     ) -> str:
-        """Build system prompt with exposed entities and skills."""
+        """Build system prompt with exposed entities."""
         raw_prompt: str = self.subentry.data.get(CONF_PROMPT, DEFAULT_PROMPT)
 
         result = template.Template(raw_prompt, self.hass).async_render(
@@ -230,47 +199,11 @@ class ExtendedOpenAIAgentEntity(
                 "exposed_entities": exposed_entities,
                 "current_device_id": llm_context.device_id,
                 "user_input": user_input,
-                "skills": self._get_enabled_skills(),
             },
             parse_result=False,
         )
 
         return str(result)
 
-    def _get_enabled_skills(self) -> list[Skill]:
-        """Get enabled skills as list for template rendering."""
-        enabled_skill_names = self.skills
-        all_skills = self.skill_manager.get_all_skills()
-
-        return [s for s in all_skills if s.name in enabled_skill_names]
-
     def _get_exposed_entities(self) -> list[dict[str, Any]]:
         return get_exposed_entities(self.hass)
-
-    def _get_function_tools(self) -> list[dict[str, Any]]:
-        """Get custom functions configuration."""
-        try:
-            function_tools_config = self.subentry.data.get(CONF_FUNCTION_TOOLS)
-            function_tools: list[dict[str, Any]] | None = (
-                yaml.safe_load(function_tools_config)
-                if function_tools_config
-                else DEFAULT_CONF_FUNCTION_TOOLS
-            )
-            if function_tools:
-                for function_tool in function_tools:
-                    if isinstance(function_tool, dict) and "function" in function_tool:
-                        function_config = function_tool["function"]
-                        if (
-                            isinstance(function_config, dict)
-                            and "type" in function_config
-                        ):
-                            function = get_function(function_config["type"])
-                            function_tool["function"] = function.validate_schema(
-                                function_config
-                            )
-
-            return function_tools or []
-        except (InvalidFunction, FunctionNotFound) as e:
-            raise e
-        except Exception as e:
-            raise FunctionLoadFailed() from e

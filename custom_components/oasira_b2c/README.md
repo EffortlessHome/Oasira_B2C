@@ -1,200 +1,129 @@
-# Oasira
+# Oasira Home Integration
 
-[![GitHub Release][releases-shield]][releases]
-[![License][license-shield]](LICENSE)
+This directory contains the Home Assistant custom integration for Oasira Home.
 
-![Project Maintenance][maintenance-shield]
-[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
+The integration combines cloud-backed Oasira system data with local Home Assistant automation services, conversation features, AI task features, timeline event workflows, and deployable UI resources.
 
-[![Discord][discord-shield]][discord]
-[![Community Forum][forum-shield]][forum]
+## Functional Scope
 
-Oasira is a comprehensive Home Assistant integration that provides advanced home automation features including security monitoring, presence detection, and smart home coordination.
+### Security and Alarm Operations
 
-## Features
+- Multi-mode alarm workflows and alert management
+- Pending alarm confirmation and alarm cancellation services
+- Alarm status query services
+- Event creation services tied to active alarms
 
-- **Custom Dashboard and Apps**: Easy to use, UX optimized dashboard apps for iOS, Android, Mac, Windows, TVOS, Android/Google TV
-- **Security Monitoring**: Comprehensive alarm system with support for multiple alarm types (security, monitoring, medical alert)
-- **Presence Detection**: Advanced person tracking with local and remote device trackers
-- **Area Management**: Automatic area-based automation and entity organization
-- **Motion Sensor Groups**: Intelligent grouping of motion sensors for security and automation
-- **Notification System**: Push notifications via Firebase Cloud Messaging
-- **Virtual Power Sensors**: Create virtual power monitoring for devices
-- **Sleep Mode**: Area-based sleep mode automation
-- **Smart Appliance Integration**: Monitor and automate smart appliances
-- **Calendar Integration**: Google Calendar integration for automation triggers
-- **Weather-based Automation**: Climate control based on weather forecasts
+### Area and Entity Management
+
+- Entity-to-area update service
+- Label assignment service for entity organization
+- Integration startup label bootstrap for Favorite and NotForSecurityMonitoring
+
+### Notifications and Mobile Support
+
+- Firebase configuration retrieval service for mobile app integration
+- Push token webhook flows and notification fanout support
+
+### Timeline and Camera Event Services
+
+- Capture camera snapshots and optionally persist timeline events
+- Record short camera clips and attach timeline metadata
+- Create person detection timeline events from supplied media
+- Query timeline events by camera, area, date range, and type
+- Update and delete timeline events
+
+### AI Capabilities
+
+- Conversation platform integration
+- AI task platform integration
+- Runtime connection to Ollama using configurable base URL and model
+- AI services:
+	- change_config
+	- analyze_image
+	- scan_home_automation_patterns
+	- reload_skills
+	- download_skill
+
+### Automation Assets and UX
+
+- Blueprint package under blueprints/automation with Oasira scenarios
+- Theme package under themes/
+- Frontend resources under www/oasira_b2c/
+- Deployment service to copy packaged assets into Home Assistant config paths
+
+## Home Assistant Platforms
+
+The integration forwards setup to these platforms:
+
+- switch
+- binary_sensor
+- sensor
+- cover
+- light
+- alarm_control_panel
+- button
+- conversation
+- ai_task
+
+## Service Reference
+
+Primary service definitions are documented in services.yaml in this folder.
+
+Operational services include:
+
+- clean_motion_files
+- create_event
+- cancel_alarm
+- get_alarm_status
+- confirm_pending_alarm
+- create_alert
+- update_entity
+- deploy_latest_config
+- get_firebase_config
+- add_label_to_entity
+
+Timeline services include:
+
+- capture_snapshot
+- record_video_clip
+- create_person_event
+- get_timeline
+- update_timeline_event
+- delete_timeline_event
+
+AI services include:
+
+- change_config
+- analyze_image
+- scan_home_automation_patterns
+- reload_skills
+- download_skill
 
 ## Installation
 
-### HACS Installation (Recommended)
+### HACS
 
-1. Open HACS in your Home Assistant instance
-2. Add this Github Repo as a custom source
-3. Search for "Oasira"
-4. Click Install
-5. Restart Home Assistant
+1. Add this repository as a custom repository in HACS
+2. Install Oasira Home
+3. Restart Home Assistant
+4. Add the integration from Settings > Devices and Services
 
-### Manual Installation
+### Manual
 
-1. Copy the `Oasira` directory to your `custom_components` folder
+1. Copy this folder to custom_components/oasira_b2c
 2. Restart Home Assistant
-3. Add the integration via Configuration > Integrations > Add Integration > Oasira
-
-## Configuration
-
-### Initial Setup
-
-1. After installation, go to Configuration > Integrations
-2. Click the "+" button and search for "Oasira"
-3. Enter your Oasira account credentials
-4. Select the system you want to configure (if you have multiple systems)
-
-### Required Information
-
-- **Email**: Your Oasira account email
-- **Password**: Your Oasira account password
-
-### Optional Configuration
-
-After initial setup, you can configure additional options:
-
-- **Debug Mode**: Enable debug logging for troubleshooting
-
-## Services
-
-The integration provides several services:
-
-| Service | Description |
-|---------|-------------|
-| `Oasira.clean_motion_files` | Clean old motion snapshot files |
-| `Oasira.create_alert` | Create an alert record |
-| `Oasira.cancel_alarm` | Cancel an active alarm |
-| `Oasira.get_alarm_status` | Get current alarm status |
-| `Oasira.confirm_pending_alarm` | Confirm a pending alarm |
-| `Oasira.create_event` | Create an event for active alarm |
-| `Oasira.deploy_latest_config` | Deploy latest configuration files |
-| `Oasira.get_firebase_config` | Get Firebase configuration |
-| `Oasira.add_label_to_entity` | Add a label to an entity |
-| `Oasira.update_entity` | Update entity area assignment |
-
-## Entities
-
-The integration creates various entities including:
-
-### Binary Sensors
-- Security Motion Group
-- Window Group
-- Door Group
-- Smoke Group
-- Carbon Monoxide Group
-- Moisture Group
-- Monitoring Alarm
-- Sleeping Sensor
-- Someone Home Sensor
-- Smart Appliance Sensors
-
-### Sensors
-- Alarm ID Sensor
-- Alarm Status Sensor
-- Alarm Last Event Sensor
-- Average Temperature Sensor
-- Average Humidity Sensor
-- Virtual Illuminance Sensor
-- High Temperature Tomorrow Sensor
-- Configuration Sensors
-- Person Sensors
-
-### Switches
-- Sleep Mode Switch
-- Motion Notifications Switch
-- Monitoring Alarm Switch
-- Disable Motion Lighting Switch
-- Smart Appliance Conversion Switches
-- Presence Simulation Switch
-
-## Blueprints
-
-The integration includes numerous automation blueprints for common scenarios:
-
-- Arrival/Departure automation
-- Good Morning/Good Night routines
-- Security alarm triggers and notifications
-- Motion-activated lighting
-- Climate control automation
-- Low battery notifications
-- And many more...
+3. Add Oasira Home from Settings > Devices and Services
 
 ## Requirements
 
-### Dependencies
+- Home Assistant with config flow support
+- Recorder integration enabled
+- Network access to Oasira cloud endpoints
+- Network access to configured Ollama endpoint for AI features
 
-This integration requires the following Python packages (automatically installed):
-
-- `oasira>=0.2.12`
-- `gcal-sync>=6.2.0`
-- `google-auth>=2.28.0`
-- `google-api-python-client>=2.126.0`
-- `gTTS>=2.5.0`
-- `google-genai==1.29.0`
-- `influxdb-client>=1.48.0`
-
-### Home Assistant Dependencies
-
-The integration requires the following Home Assistant components:
-
-- `http`
-- `panel_custom`
-- `recorder`
-- `light`
-- `button`
-- `group`
-- `binary_sensor`
-- `sensor`
-- `conversation`
-
-## Mobile App Notifications
-
-To enable mobile app notifications, you need to configure Home Assistant's `mobile_app` integration with Firebase. Use the `Oasira.get_firebase_config` service to retrieve the Firebase configuration, then add it to your `configuration.yaml`.
-
-## Labels
-
-The integration uses the following labels for entity organization:
-
-- `Favorite`: Mark favorite entities
-- `NotForSecurityMonitoring`: Exclude entities from security monitoring
+Python dependencies are declared in manifest.json and installed automatically by Home Assistant.
 
 ## Support
 
-- **GitHub Issues**: [Report bugs and feature requests](https://github.com/Oasira/Oasira/issues)
-- **Discord Community**: [Join our Discord server](https://discord.gg/Oasira)
-- **Forum**: [Community Forum](https://community.home-assistant.io/t/Oasira/)
-
-## Contributing
-
-We welcome contributions! Please see our [contributing guidelines](CONTRIBUTING.md) for more information.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Home Assistant community
-- All contributors and testers
-- Oasira users
-
----
-
-**Note**: This integration requires an Oasira account. Sign up at [https://my.Oasira.co](https://my.Oasira.co)
-
-[buymecoffee]: https://www.buymecoffee.com/Oasira
-[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
-[discord]: https://discord.gg/Oasira
-[discord-shield]: https://img.shields.io/discord/1234567890?color=7289da&label=Discord&logo=discord&logoColor=white&style=for-the-badge
-[forum-shield]: https://img.shields.io/badge/community-forum-brightgreen.svg?style=for-the-badge&logo=home-assistant
-[forum]: https://community.home-assistant.io/
-[license-shield]: https://img.shields.io/github/license/Oasira/Oasira.svg?style=for-the-badge
-[maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg?style=for-the-badge
-[releases-shield]: https://img.shields.io/github/release/Oasira/Oasira.svg?style=for-the-badge
-[releases]: https://github.com/Oasira/Oasira/releases
+- Issues: https://github.com/Oasira/Oasira/issues
+- Website: https://www.oasira.ai/

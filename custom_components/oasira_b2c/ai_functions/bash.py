@@ -6,11 +6,13 @@ import asyncio
 import logging
 from pathlib import Path
 import re
+from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, llm
+from homeassistant.helpers.template import Template
 
 from ..ai_const import (
     DEFAULT_WORKING_DIRECTORY,
@@ -18,6 +20,7 @@ from ..ai_const import (
     SHELL_OUTPUT_LIMIT,
     SHELL_TIMEOUT,
 )
+from ..ai_exceptions import InvalidFunction
 from .base import Function
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,6 +28,36 @@ _LOGGER = logging.getLogger(__name__)
 
 class BashFunction(Function):
     """Execute shell commands with security controls."""
+
+    @staticmethod
+    def _normalize_template_value(value: Any) -> str:
+        """Convert stored selector/template values to raw template strings."""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, Template):
+            return value.template
+        if hasattr(value, "template") and isinstance(value.template, str):
+            return value.template
+        if isinstance(value, dict):
+            for key in ("template", "value_template", "command", "cwd", "value"):
+                template_value = value.get(key)
+                if isinstance(template_value, str):
+                    return template_value
+        raise InvalidFunction("bash")
+
+    def validate_schema(self, function_config: dict[str, Any]) -> dict[str, Any]:
+        """Validate bash config after normalizing template-backed fields."""
+        config = dict(function_config)
+
+        for key in ("command", "cwd"):
+            if key in config and config[key] is not None:
+                config[key] = self._normalize_template_value(config[key])
+
+        try:
+            return super().validate_schema(config)
+        except vol.Error as err:
+            _LOGGER.error("Bash function validation error: %s", err)
+            raise InvalidFunction("bash") from err
 
     def get_working_dir(self, hass: HomeAssistant) -> Path:
         """Get the default working directory for bash operations."""

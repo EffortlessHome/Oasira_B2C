@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 import base64
-from typing import Optional, List
+import logging
 
 import voluptuous as vol
 
@@ -16,9 +15,59 @@ from .timeline_event import get_timeline_manager
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _resolve_camera_entity_id(call: ServiceCall) -> str:
+    """Resolve camera entity id from service data or target."""
+    camera_entity_id = call.data.get("camera_entity_id")
+    if camera_entity_id:
+        return camera_entity_id
+
+    target_entity_id = call.data.get("entity_id")
+    if isinstance(target_entity_id, list):
+        if not target_entity_id:
+            raise vol.Invalid("entity_id target list is empty")
+        return target_entity_id[0]
+    if isinstance(target_entity_id, str):
+        return target_entity_id
+
+    raise vol.Invalid("camera_entity_id or target.entity_id is required")
+
+
+def _normalize_labels(value: object, default: list[str] | None = None) -> list[str]:
+    """Normalize labels from list/string input into a list of non-empty strings."""
+    if value is None:
+        return list(default or [])
+
+    if isinstance(value, str):
+        labels = [part.strip() for part in value.split(",")]
+        return [label for label in labels if label]
+
+    if isinstance(value, list):
+        normalized: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                if "," in item:
+                    normalized.extend(
+                        part.strip() for part in item.split(",") if part.strip()
+                    )
+                else:
+                    item_str = item.strip()
+                    if item_str:
+                        normalized.append(item_str)
+            elif item is not None:
+                item_str = str(item).strip()
+                if item_str:
+                    normalized.append(item_str)
+        return normalized
+
+    value_str = str(value).strip()
+    return [value_str] if value_str else list(default or [])
+
+
 # Schema definitions for timeline services
 CAPTURE_SNAPSHOT_SCHEMA = vol.Schema({
-    vol.Required("camera_entity_id"): cv.string,
+    vol.Optional("camera_entity_id"): cv.string,
+    vol.Optional("entity_id"): vol.Any(cv.string, [cv.string]),
     vol.Optional("save_to_timeline", default=True): cv.boolean,
     vol.Optional("event_type", default="snapshot"): cv.string,
     vol.Optional("description"): cv.string,
@@ -28,7 +77,8 @@ CAPTURE_SNAPSHOT_SCHEMA = vol.Schema({
 })
 
 RECORD_VIDEO_CLIP_SCHEMA = vol.Schema({
-    vol.Required("camera_entity_id"): cv.string,
+    vol.Optional("camera_entity_id"): cv.string,
+    vol.Optional("entity_id"): vol.Any(cv.string, [cv.string]),
     vol.Optional("duration", default=5): cv.positive_int,
     vol.Optional("save_to_timeline", default=True): cv.boolean,
     vol.Optional("event_type", default="motion"): cv.string,
@@ -38,7 +88,8 @@ RECORD_VIDEO_CLIP_SCHEMA = vol.Schema({
 })
 
 CREATE_PERSON_EVENT_SCHEMA = vol.Schema({
-    vol.Required("camera_entity_id"): cv.string,
+    vol.Optional("camera_entity_id"): cv.string,
+    vol.Optional("entity_id"): vol.Any(cv.string, [cv.string]),
     vol.Optional("camera_name"): cv.string,
     vol.Optional("snapshot_data"): cv.string,
     vol.Optional("video_clip_data"): cv.string,
@@ -77,11 +128,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
     async def capture_snapshot(call: ServiceCall) -> ServiceResponse:
         """Capture a snapshot from a camera and optionally save to timeline."""
-        camera_entity_id = call.data["camera_entity_id"]
+        camera_entity_id = _resolve_camera_entity_id(call)
         save_to_timeline = call.data.get("save_to_timeline", True)
         event_type = call.data.get("event_type", "snapshot")
         description = call.data.get("description")
-        labels = call.data.get("labels", [])
+        labels = _normalize_labels(call.data.get("labels"), default=[])
         area_id = call.data.get("area_id")
         area_name = call.data.get("area_name")
 
@@ -106,7 +157,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 blocking=True,
             )
 
-            # If save_to_timeline, create timeline event
             if save_to_timeline:
                 manager = await get_timeline_manager(hass)
                 # Read the saved snapshot
@@ -137,7 +187,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
     async def record_video_clip(call: ServiceCall) -> ServiceResponse:
         """Record a video clip from a camera and optionally save to timeline."""
-        camera_entity_id = call.data["camera_entity_id"]
+        camera_entity_id = _resolve_camera_entity_id(call)
         duration = call.data.get("duration", 5)
         save_to_timeline = call.data.get("save_to_timeline", True)
         event_type = call.data.get("event_type", "motion")
@@ -203,13 +253,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
     async def create_person_event(call: ServiceCall) -> ServiceResponse:
         """Create a person detection timeline event with snapshot and/or video."""
-        camera_entity_id = call.data["camera_entity_id"]
+        camera_entity_id = _resolve_camera_entity_id(call)
         camera_name = call.data.get("camera_name", camera_entity_id)
         snapshot_b64 = call.data.get("snapshot_data")
         video_b64 = call.data.get("video_clip_data")
         video_duration = call.data.get("video_duration", 5)
         confidence = call.data.get("confidence", 1.0)
-        labels = call.data.get("labels", ["person"])
+        labels = _normalize_labels(call.data.get("labels"), default=["person"])
         area_id = call.data.get("area_id")
         area_name = call.data.get("area_name")
         description = call.data.get("description")

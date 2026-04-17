@@ -10,6 +10,7 @@
     "@EffortlessHome"
   ],
   "config_flow": true,
+  "config_entry_reconfigure": true,
   "iot_class": "cloud_polling",
   "dependencies": [
     "http",
