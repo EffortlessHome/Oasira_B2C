@@ -25,7 +25,7 @@ blueprint:
     securityalarm:
       name: Security Alarm
       description: The security alarm to disarm
-      default: alarm_control_panel.Oasira
+      default: alarm_control_panel.effortlesshome
       selector:
         entity:
           filter:

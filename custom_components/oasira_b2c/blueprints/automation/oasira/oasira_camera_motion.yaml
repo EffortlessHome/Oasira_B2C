@@ -6,7 +6,7 @@ blueprint:
     your phone with the picture. Clicking the navigation will navigate to dashboard
     URL.
   domain: automation
-  author: Oasira Home
+  author: Oasira
   input:
     sensor:
       name: Motion or Binary Sensor
@@ -24,12 +24,7 @@ blueprint:
           domain:
             - camera
           multiple: false
-    person_input:
-      name: Person
-      description: The person to notify
-      selector:
-        entity:
-          domain: sensor
+
     notification_title:
       name: Notification title
       description: 'Default: "Motion detected!"'
@@ -42,13 +37,6 @@ blueprint:
       default:
         "{{ sensor_name }} detected movement! Snapshot from {{ camera_name
         }} at {{ time }}."
-
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification. (default
-        = /lovelace)
-      default: /lovelace
 
     additional_actions:
       name: Additional Actions
@@ -76,13 +64,11 @@ variables:
   notification_title: !input notification_title
   notification_message: !input notification_message
 
-  snapshot_create_file_path: /media/snapshots/{{ camera_name }}/{{
-    now().strftime("%Y%m%d-%H%M%S") }}.jpg
-  snapshot_access_file_path:
-    "{{ snapshot_create_file_path | replace('/media','/media/local')
+  snapshot_create_file_path: /media/snapshots/{{ camera_name }}/{{ date }} {{ time }}.jpg
+  snapshot_access_file_path: /config/www/effortlesshome/{{ camera_name }}.latest.jpg
+  snapshot_access_file_path_local:
+    "{{ snapshot_access_file_path | replace('/config/www','/local')
     }}"
-
-  clickActionURL: !input data_clickaction_url
 
   additional_actions: !input additional_actions
 
@@ -92,27 +78,21 @@ action:
     data:
       filename: "{{ snapshot_create_file_path }}"
 
+  - service: camera.snapshot
+    entity_id: !input camera
+    data:
+      filename: "{{ snapshot_access_file_path }}"
+
   - condition: state
-    entity_id: binary_sensor.motion_notification_sensor
+    entity_id: switch.motion_notifications
     state: "on"
 
-  - service: oasira_b2c.notify_person_service
+  - service: notify.effortlesshome
     data:
-      target: !input person_input
       title: !input notification_title
       message: !input notification_message
       data:
-        image: "{{ snapshot_access_file_path }}"
-        clickAction: !input data_clickaction_url
-        ttl: 0
-        priority: high
-        attachment:
-          url: "{{ snapshot_access_file_path }}"
-          content_type: JPEG
-        url: !input data_clickaction_url
-        actions:
-          - action: SNOOZEMOTIONNOTIFY
-            title: Snooze Motion Notifications
+        image: "{{ snapshot_access_file_path_local }}"
 
   - choose: []
     default: !input additional_actions

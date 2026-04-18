@@ -5,7 +5,7 @@ blueprint:
     or if a binary sensor's state turns 'off' to 'on', and sends a notification with the video clip. Clicking the navigation will navigate to dashboard
     URL.
   domain: automation
-  author: Oasira Home
+  author: Oasira
   input:
     sensor:
       name: Motion or Binary Sensor
@@ -23,12 +23,7 @@ blueprint:
           domain:
             - camera
           multiple: false
-    person_input:
-      name: Person
-      description: The person to notify
-      selector:
-        entity:
-          domain: sensor
+
     video_length:
       name: Video Length
       description: The length of the video to capture on motion (in seconds).
@@ -51,13 +46,6 @@ blueprint:
         camera_name }} at {{ time }}."'
       default: "{{ sensor_name }} detected movement! Video from {{ camera_name
         }} at {{ time }}."
-
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification. (default
-        = /lovelace)
-      default: /lovelace
 
     additional_actions:
       name: Additional Actions
@@ -91,8 +79,6 @@ variables:
     "{{ snapshot_create_file_path | replace('/media','/media/local')
     }}"
 
-  clickActionURL: !input data_clickaction_url
-
   additional_actions: !input additional_actions
 
 action:
@@ -106,25 +92,17 @@ action:
       entity_id: !input camera
 
   - condition: state
-    entity_id: binary_sensor.motion_notification_sensor
+    entity_id: switch.motion_notifications
     state: "on"
 
-  - service: oasira_b2c.notify_person_service
+  - service: notify.effortlesshome
     data:
-      target: !input person_input
       title: !input notification_title
       message: !input notification_message
       data:
         video: "{{ snapshot_access_file_path }}"
-        clickAction: !input data_clickaction_url
-        ttl: 0
-        priority: high
         attachment:
           url: "{{ snapshot_access_file_path }}"
-        url: !input data_clickaction_url
-        actions:
-          - action: SNOOZEMOTIONNOTIFY
-            title: Snooze Motion Notifications
 
   - choose: []
     default: !input additional_actions
