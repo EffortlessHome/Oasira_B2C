@@ -5,15 +5,16 @@ from __future__ import annotations
 import logging
 from typing import Optional, List
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, NAME
-from .timeline_event import get_timeline_manager, TimelineEvent
+from .timeline_event import SIGNAL_TIMELINE_UPDATED, get_timeline_manager, TimelineEvent
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,9 +22,8 @@ _LOGGER = logging.getLogger(__name__)
 class TimelineSensor(SensorEntity, RestoreEntity):
     """Sensor to display recent timeline events."""
 
-    _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["clear", "person_detected", "motion", "vehicle", "animal", "package", "other"]
     _attr_should_poll = False
+    _attr_icon = "mdi:timeline"
 
     def __init__(self) -> None:
         """Initialize timeline sensor."""
@@ -63,8 +63,20 @@ class TimelineSensor(SensorEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         """Restore previous state."""
         await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_TIMELINE_UPDATED,
+                self._handle_timeline_updated,
+            )
+        )
         # Load recent events on startup
         await self._update_recent_events()
+
+    @callback
+    def _handle_timeline_updated(self) -> None:
+        """Refresh when timeline events change."""
+        self.hass.async_create_task(self._update_recent_events())
 
     async def _update_recent_events(self) -> None:
         """Update sensor with recent events."""
@@ -87,20 +99,41 @@ class TimelineSensor(SensorEntity, RestoreEntity):
             for event in recent[:5]:
                 events_data.append({
                     "event_id": event.event_id,
-                    "type": event.event_type,
+                    "event_type": event.event_type,
                     "timestamp": event.timestamp.isoformat(),
-                    "camera": event.camera_name,
-                    "area": event.area_name or "Unknown",
+                    "entity_id": event.camera_entity_id,
+                    "entity_name": event.camera_name,
+                    "area_id": event.area_id,
+                    "area_name": event.area_name,
+                    "description": event.description,
+                    "labels": event.labels,
+                    "metadata": event.metadata,
+                    "confidence": event.confidence,
+                    "is_favorite": event.is_favorite,
+                    "is_reviewed": event.is_reviewed,
                     "has_snapshot": event.snapshot_path is not None,
                     "has_video": event.video_clip_path is not None,
+                    "snapshot_path": event.snapshot_path,
+                    "video_clip_path": event.video_clip_path,
                 })
 
             self._attributes = {
+                "last_event_id": latest.event_id,
+                "last_event_type": latest.event_type,
+                "last_entity_id": latest.camera_entity_id,
+                "last_entity_name": latest.camera_name,
+                "last_area_id": latest.area_id,
+                "last_area_name": latest.area_name,
+                "last_description": latest.description,
+                "last_labels": latest.labels,
+                "last_metadata": latest.metadata,
+                "last_has_snapshot": latest.snapshot_path is not None,
+                "last_has_video": latest.video_clip_path is not None,
                 "recent_events": events_data,
                 "total_events_today": len([e for e in recent if e.timestamp.date() == dt_util.utcnow().date()]),
                 "last_update": dt_util.utcnow().isoformat(),
             }
-            self.schedule_update_ha_state()
+            self.async_write_ha_state()
 
         except Exception as e:
             _LOGGER.error("Failed to update timeline sensor: %s", e)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 
 import voluptuous as vol
 
@@ -11,7 +12,8 @@ from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
-from .timeline_event import get_timeline_manager
+from .timeline_event import SIGNAL_TIMELINE_UPDATED, get_timeline_manager
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,6 +66,48 @@ def _normalize_labels(value: object, default: list[str] | None = None) -> list[s
     return [value_str] if value_str else list(default or [])
 
 
+async def _record_camera_clip(
+    hass: HomeAssistant,
+    camera_entity_id: str,
+    camera_name: str,
+    duration: int,
+) -> bytes | None:
+    """Record a temporary clip from a camera and return its bytes."""
+    from homeassistant.util import dt as dt_util
+
+    timestamp = dt_util.utcnow()
+    camera_slug = camera_name.replace(" ", "_")
+    video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_clip.mp4"
+    clip_dir = hass.config.path(f"media/clips/{camera_slug}")
+    os.makedirs(clip_dir, exist_ok=True)
+
+    full_video_path = hass.config.path(f"media/clips/{camera_slug}/{video_filename}")
+
+    await hass.services.async_call(
+        "camera",
+        "record",
+        {
+            "entity_id": camera_entity_id,
+            "filename": full_video_path,
+            "duration": duration,
+            "lookback": 0,
+        },
+        blocking=True,
+    )
+
+    if not os.path.exists(full_video_path):
+        return None
+
+    try:
+        with open(full_video_path, "rb") as file_handle:
+            return file_handle.read()
+    finally:
+        try:
+            os.remove(full_video_path)
+        except OSError:
+            _LOGGER.debug("Failed to remove temporary clip: %s", full_video_path)
+
+
 # Schema definitions for timeline services
 CAPTURE_SNAPSHOT_SCHEMA = vol.Schema({
     vol.Optional("camera_entity_id"): cv.string,
@@ -100,15 +144,6 @@ CREATE_PERSON_EVENT_SCHEMA = vol.Schema({
     vol.Optional("area_name"): cv.string,
     vol.Optional("description"): cv.string,
     vol.Optional("metadata", default={}): dict,
-})
-
-GET_TIMELINE_SCHEMA = vol.Schema({
-    vol.Optional("camera_entity_id"): cv.string,
-    vol.Optional("area_id"): cv.string,
-    vol.Optional("event_types", default=[]): cv.ensure_list,
-    vol.Optional("start_date"): cv.string,
-    vol.Optional("end_date"): cv.string,
-    vol.Optional("limit", default=50): cv.positive_int,
 })
 
 UPDATE_EVENT_SCHEMA = vol.Schema({
@@ -208,39 +243,22 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         camera_name = camera_state.name if camera_state else camera_entity_id
 
         try:
-            import datetime
             from homeassistant.util import dt as dt_util
 
             timestamp = dt_util.utcnow()
             video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_clip.mp4"
             video_path = f"/media/clips/{camera_name.replace(' ', '_')}/{video_filename}"
-
-            # Ensure directory exists
-            clip_dir = hass.config.path(f"media/clips/{camera_name.replace(' ', '_')}")
-            import os
-            os.makedirs(clip_dir, exist_ok=True)
-
             full_video_path = hass.config.path(video_path.lstrip("/"))
 
-            # Call camera record service
-            await hass.services.async_call(
-                "camera",
-                "record",
-                {
-                    "entity_id": camera_entity_id,
-                    "filename": full_video_path,
-                    "duration": duration,
-                    "lookback": 0,
-                },
-                blocking=True,
+            video_data = await _record_camera_clip(
+                hass,
+                camera_entity_id,
+                camera_name,
+                duration,
             )
 
             if save_to_timeline:
                 manager = await get_timeline_manager(hass)
-                video_data = None
-                if os.path.exists(full_video_path):
-                    with open(full_video_path, "rb") as f:
-                        video_data = f.read()
 
                 event = await manager.create_motion_event(
                     camera_entity_id=camera_entity_id,
@@ -263,7 +281,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def create_person_event(call: ServiceCall) -> ServiceResponse:
         """Create a person detection timeline event with snapshot and/or video."""
         camera_entity_id = _resolve_camera_entity_id(call)
-        camera_name = call.data.get("camera_name", camera_entity_id)
+        camera_state = hass.states.get(camera_entity_id)
+        camera_name = call.data.get("camera_name") or (
+            camera_state.name if camera_state else camera_entity_id
+        )
         snapshot_b64 = call.data.get("snapshot_data")
         video_b64 = call.data.get("video_clip_data")
         video_duration = call.data.get("video_duration", 5)
@@ -290,6 +311,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     video_data = base64.b64decode(video_b64)
                 except Exception as e:
                     _LOGGER.warning("Failed to decode video data: %s", e)
+            else:
+                try:
+                    video_data = await _record_camera_clip(
+                        hass,
+                        camera_entity_id,
+                        camera_name,
+                        video_duration,
+                    )
+                except Exception as e:
+                    _LOGGER.warning(
+                        "Failed to auto-record clip for person event on %s: %s",
+                        camera_entity_id,
+                        e,
+                    )
 
             event = await manager.create_person_detection_event(
                 camera_entity_id=camera_entity_id,
@@ -317,60 +352,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Failed to create person event: %s", e)
             return {"success": False, "error": str(e)}
 
-    async def get_timeline(call: ServiceCall) -> ServiceResponse:
-        """Get timeline events."""
-        camera_entity_id = call.data.get("camera_entity_id")
-        area_id = call.data.get("area_id")
-        event_types = call.data.get("event_types", [])
-        start_date_str = call.data.get("start_date")
-        end_date_str = call.data.get("end_date")
-        limit = call.data.get("limit", 50)
-
-        try:
-            from homeassistant.util import dt as dt_util
-
-            start_date = None
-            end_date = None
-            if start_date_str:
-                parsed = dt_util.parse_datetime(start_date_str)
-                if parsed:
-                    start_date = dt_util.as_utc(parsed)
-            if end_date_str:
-                parsed = dt_util.parse_datetime(end_date_str)
-                if parsed:
-                    end_date = dt_util.as_utc(parsed)
-
-            manager = await get_timeline_manager(hass)
-
-            if camera_entity_id:
-                events = manager.get_timeline_for_camera(
-                    camera_entity_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    event_types=event_types if event_types else None,
-                    limit=limit,
-                )
-            elif area_id:
-                events = manager.get_timeline_for_area(
-                    area_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    event_types=event_types if event_types else None,
-                    limit=limit,
-                )
-            else:
-                events = manager.get_recent_events(limit=limit)
-
-            return {
-                "success": True,
-                "events": [e.to_dict() for e in events],
-                "count": len(events),
-            }
-
-        except Exception as e:
-            _LOGGER.error("Failed to get timeline: %s", e)
-            return {"success": False, "error": str(e)}
-
     async def update_timeline_event(call: ServiceCall) -> ServiceResponse:
         """Update a timeline event."""
         event_id = call.data["event_id"]
@@ -390,6 +371,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         event.is_favorite = is_favorite
                     if description is not None:
                         event.description = description
+                    async_dispatcher_send(hass, SIGNAL_TIMELINE_UPDATED)
                     return {"success": True, "event_id": event_id}
 
             return {"success": False, "error": "Event not found"}
@@ -465,7 +447,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         create_timeline_event,
         CREATE_TIMELINE_EVENT_SCHEMA,
     )
-    hass.services.async_register(DOMAIN, "get_timeline", get_timeline, GET_TIMELINE_SCHEMA)
     hass.services.async_register(DOMAIN, "update_timeline_event", update_timeline_event, UPDATE_EVENT_SCHEMA)
 
     _LOGGER.info("Timeline services registered")

@@ -183,7 +183,7 @@ record_video_clip:
 
 create_person_event:
   name: Create Person Event
-  description: Create a timeline event with person detection, snapshot and/or video
+  description: Create a timeline event with person detection, snapshot, and an automatic 5 second video clip if none is provided
   fields:
     camera_entity_id:
       description: The camera entity ID
@@ -207,7 +207,7 @@ create_person_event:
         text:
 
     video_clip_data:
-      description: Base64 encoded video clip
+      description: Base64 encoded video clip. If omitted, a 5 second clip is recorded from the camera automatically.
       selector:
         text:
 
@@ -319,51 +319,6 @@ create_timeline_event:
       description: Additional metadata as key-value pairs
       selector:
         object:
-
-get_timeline:
-  name: Get Timeline
-  description: Get timeline events for cameras or areas
-  target: {}
-  fields:
-    camera_entity_id:
-      description: Filter by camera entity ID
-      example: "camera.front_door"
-      selector:
-        entity:
-          domain:
-            - camera
-
-    area_id:
-      description: Filter by area ID
-      selector:
-        area:
-
-    event_types:
-      description: Filter by event types
-      example: ["person_detected", "motion"]
-      selector:
-        text:
-          multiple: true
-
-    start_date:
-      description: Start date (ISO format)
-      example: "2024-01-01T00:00:00Z"
-      selector:
-        text:
-
-    end_date:
-      description: End date (ISO format)
-      example: "2024-01-31T23:59:59Z"
-      selector:
-        text:
-
-    limit:
-      description: Maximum number of events to return
-      default: 50
-      selector:
-        number:
-          min: 1
-          max: 500
 
 update_timeline_event:
   name: Update Timeline Event

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional, List, Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -21,6 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 TIMELINE_MEDIA_DIR = "media/timeline"
 TIMELINE_EVENTS_FILE = "timeline_events.json"
 MAX_EVENTS_PER_DAY = 1000
+SIGNAL_TIMELINE_UPDATED = f"{DOMAIN}_timeline_updated"
 
 
 @dataclass
@@ -140,6 +142,10 @@ class TimelineManager:
         }
         await self._store.async_save(data)
 
+    def _notify_timeline_updated(self) -> None:
+        """Notify listeners that timeline data changed."""
+        async_dispatcher_send(self.hass, SIGNAL_TIMELINE_UPDATED)
+
     def get_camera_media_dir(self, camera_name: str) -> Path:
         """Get the media directory for a camera."""
         camera_dir = self._media_dir / camera_name.replace(" ", "_")
@@ -206,6 +212,7 @@ class TimelineManager:
 
         self._events.append(event)
         await self._save_events()
+        self._notify_timeline_updated()
 
         _LOGGER.info(
             "Created timeline event %s for camera %s: person detected",
@@ -250,6 +257,7 @@ class TimelineManager:
 
         self._events.append(event)
         await self._save_events()
+        self._notify_timeline_updated()
 
         return event
 
@@ -380,6 +388,7 @@ class TimelineManager:
 
         self._events.append(event)
         await self._save_events()
+        self._notify_timeline_updated()
 
         _LOGGER.info(
             "Created timeline event %s for entity %s: %s",
@@ -403,6 +412,7 @@ class TimelineManager:
                 # Remove from list
                 self._events.pop(i)
                 await self._save_events()
+                self._notify_timeline_updated()
                 return True
         return False
 
