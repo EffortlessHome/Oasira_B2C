@@ -160,7 +160,7 @@ action:
   - condition: template
     value_template: "{{ notify_on_capture }}"
 
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       title: "{{ notification_title }}"
       message: "{{ notification_message }}"

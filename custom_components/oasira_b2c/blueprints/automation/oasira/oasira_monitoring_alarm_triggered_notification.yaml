@@ -33,7 +33,7 @@ action:
     variables:
       action_confirm: "{{ 'CONFIRM_' ~ context.id }}"
       action_dismiss: "{{ 'DISMISS_' ~ context.id }}"
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       message: !input notification_message
       title: "Security Alarm Triggered"

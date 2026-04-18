@@ -48,7 +48,7 @@ trigger:
     below: !input low_sensor
 
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       title: Temperature Sensor Activated
       message: !input notification_message

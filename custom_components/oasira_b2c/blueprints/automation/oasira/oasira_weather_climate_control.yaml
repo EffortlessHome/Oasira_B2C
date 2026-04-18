@@ -45,7 +45,7 @@ variables:
   displaytempindoor: "{{ states(indoortemp)  }}"
 
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       title: Climate Control Suggestion
       message: >

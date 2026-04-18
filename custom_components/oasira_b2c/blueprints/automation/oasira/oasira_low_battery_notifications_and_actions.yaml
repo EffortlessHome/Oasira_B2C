@@ -123,7 +123,7 @@ trigger:
     id: t1
 
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       title: !input notification_title
       message: "Battery and Sensor Check Result. Sensors: {{ sensors_names }} and Unavailable: {{ unavailable_sensors_names}}"

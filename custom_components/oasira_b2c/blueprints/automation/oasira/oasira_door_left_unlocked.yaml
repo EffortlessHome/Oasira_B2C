@@ -54,7 +54,7 @@ condition:
         entity_id: !input doorlock
         state: "unlocked"
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       message: Door or Window Left Open Or Unlocked When No One Home
       data:

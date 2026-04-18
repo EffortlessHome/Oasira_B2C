@@ -88,7 +88,7 @@ action:
             target:
               entity_id: !input target_climate
 
-          - service: notify.Oasira
+          - service: notify.oasira
             data:
               title: Climate Control Disabled
               message: !input notification_message

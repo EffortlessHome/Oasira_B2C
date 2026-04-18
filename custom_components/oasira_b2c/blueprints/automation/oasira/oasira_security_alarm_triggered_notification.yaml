@@ -29,7 +29,7 @@ trigger:
     entity_id: alarm_control_panel.Oasira
     to: "triggered"
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       message: !input notification_message
       title: "Security Alarm Triggered"

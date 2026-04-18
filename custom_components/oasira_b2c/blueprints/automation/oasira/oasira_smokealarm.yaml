@@ -32,7 +32,7 @@ trigger:
     entity_id: !input smokealarm
     to: "on"
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       message: !input notification_message
       title: Smoke Alarm Activated

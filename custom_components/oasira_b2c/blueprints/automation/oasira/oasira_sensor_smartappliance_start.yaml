@@ -65,7 +65,7 @@ condition:
     state: "off"
 
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       title: !input notification_message
       message: !input notification_message

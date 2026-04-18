@@ -33,7 +33,7 @@ trigger:
     to: "On"
 action:
 
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       title: "Carbon Monoxide Alarm"
       message: !input notification_message

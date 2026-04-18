@@ -38,7 +38,7 @@ variables:
   clickActionURL: !input data_clickaction_url
 
 action:
-  - service: notify.Oasira
+  - service: notify.oasira
     data:
       title: Water Sensor Activated
       message: !input notification_message

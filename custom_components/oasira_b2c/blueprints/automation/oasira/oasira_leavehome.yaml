@@ -120,7 +120,7 @@ action:
             entity_id: !input door_sensor
             state: "on"
     then:
-      - service: notify.Oasira
+      - service: notify.oasira
         data:
           title: "Door or Window Left Open"
           message: !input notification_message
