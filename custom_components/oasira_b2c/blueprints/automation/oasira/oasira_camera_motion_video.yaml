@@ -95,7 +95,7 @@ action:
     entity_id: switch.motion_notifications
     state: "on"
 
-  - service: notify.effortlesshome
+  - service: notify.oasira
     data:
       title: !input notification_title
       message: !input notification_message
