@@ -341,6 +341,7 @@ class TimelineManager:
         area_id: Optional[str] = None,
         area_name: Optional[str] = None,
         description: Optional[str] = None,
+        confidence: Optional[float] = None,
         labels: Optional[List[str]] = None,
         metadata: Optional[dict] = None,
     ) -> TimelineEvent:
@@ -382,6 +383,7 @@ class TimelineManager:
             video_duration=video_duration if video_clip_data else None,
             thumbnail_path=thumbnail_path,
             description=description,
+            confidence=confidence,
             labels=labels or [],
             metadata=metadata or {},
         )

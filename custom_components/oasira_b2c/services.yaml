@@ -181,85 +181,23 @@ record_video_clip:
       selector:
         area:
 
-create_person_event:
-  name: Create Person Event
-  description: Create a timeline event with person detection, snapshot, and an automatic 5 second video clip if none is provided
+create_timeline_event:
+  name: Create Timeline Event
+  description: Create a timeline event for any sensor or device, with optional camera snapshot/video capture and automatic entity state capture
   fields:
+    entity_id:
+      description: The entity ID (sensor, device, etc.) that generated the event. Required when camera_entity_id is not provided.
+      example: "sensor.temperature_living_room"
+      selector:
+        entity:
+
     camera_entity_id:
-      description: The camera entity ID
+      description: Optional camera entity ID to capture snapshot and/or record a clip for this event
       example: "camera.front_door"
-      required: true
       selector:
         entity:
           domain:
             - camera
-
-    camera_name:
-      description: Display name for the camera
-      example: "Front Door"
-      required: true
-      selector:
-        text:
-
-    snapshot_data:
-      description: Base64 encoded snapshot image
-      selector:
-        text:
-
-    video_clip_data:
-      description: Base64 encoded video clip. If omitted, a 5 second clip is recorded from the camera automatically.
-      selector:
-        text:
-
-    video_duration:
-      description: Duration of video clip in seconds
-      default: 5
-      selector:
-        number:
-          min: 1
-          max: 60
-
-    confidence:
-      description: Detection confidence (0.0-1.0)
-      default: 1.0
-      selector:
-        number:
-          min: 0.0
-          max: 1.0
-
-    labels:
-      description: Detection labels as a list or comma-separated text (for example person,visitor)
-      example: ["person", "visitor"]
-      default: ["person"]
-      selector:
-        text:
-          multiple: true
-
-    area_id:
-      description: Area ID for the event
-      selector:
-        area:
-
-    area_name:
-      description: Display name for the area
-      selector:
-        text:
-
-    description:
-      description: Event description
-      selector:
-        text:
-
-create_timeline_event:
-  name: Create Timeline Event
-  description: Create a generic timeline event for any sensor or device
-  fields:
-    entity_id:
-      description: The entity ID (sensor, device, etc.) that generated the event
-      example: "sensor.temperature_living_room"
-      required: true
-      selector:
-        entity:
 
     entity_name:
       description: Display name for the entity
@@ -279,10 +217,22 @@ create_timeline_event:
       selector:
         text:
 
+    capture_snapshot:
+      description: Capture a snapshot from camera_entity_id and attach it if snapshot_data is not provided
+      default: false
+      selector:
+        boolean:
+
     video_clip_data:
       description: Base64 encoded video clip
       selector:
         text:
+
+    record_video:
+      description: Record a short video clip from camera_entity_id and attach it if video_clip_data is not provided
+      default: false
+      selector:
+        boolean:
 
     video_duration:
       description: Duration of video clip in seconds
@@ -292,18 +242,12 @@ create_timeline_event:
           min: 1
           max: 60
 
-    labels:
-      description: Event labels as a list or comma-separated text
-      example: "alert,high-temp"
-      default: []
+    confidence:
+      description: Detection confidence (0.0-1.0)
       selector:
-        text:
-          multiple: true
-
-    area_id:
-      description: Area ID for the event
-      selector:
-        area:
+        number:
+          min: 0.0
+          max: 1.0
 
     area_name:
       description: Display name for the area
@@ -314,11 +258,6 @@ create_timeline_event:
       description: Event description
       selector:
         text:
-
-    metadata:
-      description: Additional metadata as key-value pairs
-      selector:
-        object:
 
 update_timeline_event:
   name: Update Timeline Event

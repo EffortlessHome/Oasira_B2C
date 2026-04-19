@@ -22,12 +22,7 @@ blueprint:
           domain:
             - camera
           multiple: false
-    person_input:
-      name: Person
-      description: The person to notify
-      selector:
-        entity:
-          domain: sensor
+  
     ai_prompt:
       name: Prompt to use with AI
       description: Enter the prompt to use to detect something in the image captured by motion
@@ -43,11 +38,6 @@ blueprint:
         "{{ sensor_name }} detected YOUR VALUE HERE. Snapshot from {{ camera_name
         }} at {{ time }}."
 
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification.
-      default: /lovelace-oasira
 
     additional_actions:
       name: Additional Actions
@@ -88,8 +78,8 @@ action:
     action: ai_task.generate_data
     data:
       task_name: process
-      instructions: "Is there at least one vehicle shown in this image?"
-      entity_id: ai_task.oasira_business_ai_task
+      instructions: !input ai_prompt
+      entity_id: ai_task.oasira_ai_task
       attachments:
         media_content_id: "{{ snapshot_media_source }}"
         media_content_type: image/jpeg
@@ -106,23 +96,14 @@ action:
     entity_id: binary_sensor.motion_notification_sensor
     state: "on"
 
-  - service: oasira_b2c.notify_person_service
+  - service: notify.oasira
     data:
-      target: !input person_input
       title: !input notification_title
-      message: "{{ notification_message}} {{responsevar.data}"
+      message: !input notification_message
       data:
-        image: "{{ snapshot_access_file_path }}"
-        clickAction: !input data_clickaction_url
-        ttl: 0
-        priority: high
+        video: "{{ snapshot_access_file_path }}"
         attachment:
           url: "{{ snapshot_access_file_path }}"
-          content_type: JPEG
-        url: !input data_clickaction_url
-        actions:
-          - action: SNOOZEMOTIONNOTIFY
-            title: Snooze Motion Notifications
 
   - choose: []
     default: !input additional_actions

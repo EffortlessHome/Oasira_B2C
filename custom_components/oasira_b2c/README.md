@@ -86,7 +86,6 @@ Timeline services include:
 
 - capture_snapshot
 - record_video_clip
-- create_person_event
 - update_timeline_event
 - create_timeline_event
 

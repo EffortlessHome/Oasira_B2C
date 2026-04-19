@@ -140,17 +140,18 @@ action:
               event_type: "{{ event_type }}"
               description: "{{ trigger_name }} motion on {{ camera_name }}"
 
-    # Default: create person event if neither snapshot nor video specifically enabled
+    # Default: create timeline event if neither snapshot nor video specifically enabled
     default:
-      - service: oasira_b2c.create_person_event
+      - service: oasira_b2c.create_timeline_event
         target:
           entity_id: !input camera
         data:
-          camera_name: "{{ camera_name }}"
-          save_to_timeline: "{{ save_to_timeline }}"
+          camera_entity_id: !input camera
+          entity_name: "{{ camera_name }}"
           event_type: "{{ event_type }}"
+          record_video: true
+          video_duration: 5
           description: "{{ trigger_name }} activity on {{ camera_name }}"
-          labels: ["{{ event_type }}"]
 
   # Send notification if enabled
   - condition: state

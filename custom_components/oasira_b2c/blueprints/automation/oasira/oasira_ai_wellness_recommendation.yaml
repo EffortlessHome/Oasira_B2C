@@ -49,7 +49,7 @@ action:
       instructions: >
         Suggest one personalized lifestyle, wellness, or home recommendation (e.g., hydrate more, stretch, take a break, adjust sleep)
         that could help improve well-being tomorrow. Limit to 255 chars or less. 
-      entity_id: ai_task.oasira_business_ai_task
+      entity_id: ai_task.oasira_ai_task
     response_variable: responsevar
 
   - alias: Log suggestion

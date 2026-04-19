@@ -49,7 +49,7 @@ The integration exposes service groups for:
 
 - Alarm and operations: clean_motion_files, create_event, cancel_alarm, get_alarm_status, confirm_pending_alarm, create_alert, update_entity
 - Labels and deployment: add_label_to_entity, deploy_latest_config, get_firebase_config
-- Timeline: capture_snapshot, record_video_clip, create_person_event, create_timeline_event, update_timeline_event
+- Timeline: capture_snapshot, record_video_clip, create_timeline_event, update_timeline_event
 - AI: change_config, analyze_image, scan_home_automation_patterns
 
 For full service schemas and fields, see custom_components/oasira_b2c/services.yaml.

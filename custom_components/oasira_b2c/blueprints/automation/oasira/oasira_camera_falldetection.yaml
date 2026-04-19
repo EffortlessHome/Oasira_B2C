@@ -86,7 +86,7 @@ action:
         - If there is a person in the image.
         - If the person appears to have fallen or is lying in an unusual or dangerous position.
         Return only "yes" or "no".
-      entity_id: ai_task.oasira_business_ai_task
+      entity_id: ai_task.oasira_ai_task
       attachments:
         media_content_id: "{{ snapshot_media_source }}"
         media_content_type: image/jpeg
