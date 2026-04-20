@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
 
@@ -379,12 +379,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             return {"success": False, "error": error_msg}
 
     async def summarize_timeline_period(call: ServiceCall) -> ServiceResponse:
-        """Summarize timeline data over a period and compute duration-based insights."""
+        """Summarize entity activity over a period and compute duration-based insights."""
         try:
             start_time = _parse_service_datetime(call.data.get("start_time"))
             end_time = _parse_service_datetime(call.data.get("end_time"))
             hours_back = call.data.get("hours_back", 24)
-            include_entities = set(call.data.get("include_entities", []))
+            include_entities: list[str] = call.data.get("include_entities", [])
 
             now_utc = dt_util.utcnow()
             period_end = end_time or now_utc
@@ -396,27 +396,22 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "error": "start_time must be before end_time",
                 }
 
-            manager = await get_timeline_manager(hass)
-            all_events = sorted(manager._events, key=lambda event: event.timestamp)  # noqa: SLF001
+            from homeassistant.components import recorder
+            from homeassistant.components.recorder import history as recorder_history
 
-            tracked_events: list[tuple[str, datetime, str]] = []
-            for event in all_events:
-                entity_id = event.camera_entity_id
-                if include_entities and entity_id not in include_entities:
-                    continue
+            appliance_domains = {"switch", "fan", "climate", "humidifier", "dehumidifier", "vacuum", "water_heater"}
+            presence_domains = {"person", "device_tracker"}
 
-                if event.timestamp > period_end:
-                    continue
+            # Auto-detect relevant entities if none specified
+            if not include_entities:
+                target_domains = {"light"} | appliance_domains | presence_domains
+                include_entities = [
+                    state.entity_id
+                    for state in hass.states.async_all()
+                    if state.entity_id.split(".", 1)[0] in target_domains
+                ]
 
-                metadata = event.metadata or {}
-                entity_state = metadata.get("entity_state", {})
-                state_value = entity_state.get("state")
-                if not isinstance(state_value, str):
-                    continue
-
-                tracked_events.append((entity_id, event.timestamp, state_value))
-
-            if not tracked_events:
+            if not include_entities:
                 return {
                     "success": True,
                     "period": {
@@ -424,82 +419,72 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "end": period_end.isoformat(),
                         "hours": _hours((period_end - period_start).total_seconds()),
                     },
-                    "summary": "No timeline state events were found for the selected period.",
+                    "summary": "No entities found to analyze.",
                     "metrics": {
                         "lights_on_hours": 0.0,
                         "appliances_running_hours": 0.0,
                         "someone_home_hours": 0.0,
                         "no_one_home_hours": 0.0,
                     },
+                    "per_entity_hours": {},
+                    "events_analyzed": 0,
                 }
 
-            events_by_entity: dict[str, list[tuple[datetime, str]]] = {}
-            for entity_id, timestamp, state_value in tracked_events:
-                events_by_entity.setdefault(entity_id, []).append((timestamp, state_value))
+            _LOGGER.debug(
+                "Querying recorder history for %d entities from %s to %s",
+                len(include_entities), period_start, period_end,
+            )
+
+            def _query_history():
+                with recorder.util.session_scope(hass=hass, read_only=True) as session:
+                    return recorder_history.get_significant_states_with_session(
+                        hass,
+                        session,
+                        period_start,
+                        period_end,
+                        include_entities,
+                        None,   # filters
+                        True,   # include_start_time_state
+                        False,  # significant_changes_only
+                        False,  # minimal_response
+                        False,  # no_attributes
+                    )
+
+            history_by_entity = await recorder.get_instance(hass).async_add_executor_job(_query_history)
 
             lights_on_seconds = 0.0
             appliances_running_seconds = 0.0
             home_event_changes: list[tuple[datetime, str, str]] = []
-
-            appliance_domains = {
-                "switch",
-                "fan",
-                "climate",
-                "humidifier",
-                "dehumidifier",
-                "vacuum",
-                "water_heater",
-            }
-
             per_entity_hours: dict[str, dict[str, float]] = {}
+            total_state_records = 0
 
-            for entity_id, states in events_by_entity.items():
-                domain = entity_id.split(".", 1)[0] if "." in entity_id else ""
-                states.sort(key=lambda item: item[0])
-
-                baseline_state: str | None = None
-                for timestamp, state_value in states:
-                    if timestamp <= period_start:
-                        baseline_state = state_value
-                    else:
-                        break
-
-                state_points: list[tuple[datetime, str]] = []
-                if baseline_state is not None:
-                    state_points.append((period_start, baseline_state))
-
-                for timestamp, state_value in states:
-                    if period_start < timestamp <= period_end:
-                        state_points.append((timestamp, state_value))
-
-                if not state_points:
+            for entity_id, states in (history_by_entity or {}).items():
+                if not states:
                     continue
-
+                total_state_records += len(states)
+                domain = entity_id.split(".", 1)[0] if "." in entity_id else ""
                 entity_light_seconds = 0.0
                 entity_appliance_seconds = 0.0
 
-                for index, (timestamp, state_value) in enumerate(state_points):
-                    next_timestamp = (
-                        state_points[index + 1][0]
-                        if index + 1 < len(state_points)
-                        else period_end
-                    )
-
-                    interval_seconds = (next_timestamp - timestamp).total_seconds()
+                for index, state in enumerate(states):
+                    ts = state.last_changed
+                    next_ts = states[index + 1].last_changed if index + 1 < len(states) else period_end
+                    interval_seconds = (next_ts - ts).total_seconds()
                     if interval_seconds <= 0:
                         continue
 
-                    if domain == "light" and _is_on_state(state_value):
+                    state_val = state.state
+
+                    if domain == "light" and _is_on_state(state_val):
                         lights_on_seconds += interval_seconds
                         entity_light_seconds += interval_seconds
 
-                    if domain in appliance_domains and _is_on_state(state_value):
+                    if domain in appliance_domains and _is_on_state(state_val):
                         appliances_running_seconds += interval_seconds
                         entity_appliance_seconds += interval_seconds
 
-                if domain in {"person", "device_tracker"}:
-                    for timestamp, state_value in state_points:
-                        home_event_changes.append((timestamp, entity_id, state_value))
+                    if domain in presence_domains:
+                        home_event_changes.append((ts, entity_id, state_val))
 
                 if entity_light_seconds or entity_appliance_seconds:
                     per_entity_hours[entity_id] = {
@@ -513,12 +498,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if home_event_changes:
                 home_event_changes.sort(key=lambda item: item[0])
                 home_state_by_entity: dict[str, str] = {}
-
-                for timestamp, entity_id, state_value in home_event_changes:
-                    if timestamp == period_start:
-                        home_state_by_entity[entity_id] = state_value
-
                 cursor_time = period_start
+
                 for timestamp, entity_id, state_value in home_event_changes:
                     if timestamp < period_start:
                         home_state_by_entity[entity_id] = state_value
@@ -528,7 +509,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                     interval_seconds = (timestamp - cursor_time).total_seconds()
                     if interval_seconds > 0:
-                        if any(_is_home_state(state) for state in home_state_by_entity.values()):
+                        if any(_is_home_state(s) for s in home_state_by_entity.values()):
                             someone_home_seconds += interval_seconds
                         else:
                             no_one_home_seconds += interval_seconds
@@ -570,7 +551,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "no_one_home_hours": no_one_home_hours,
                 },
                 "per_entity_hours": per_entity_hours,
-                "events_analyzed": len(tracked_events),
+                "events_analyzed": total_state_records,
             }
         except Exception as error:
             _LOGGER.error("Failed to summarize timeline period: %s", error, exc_info=True)
@@ -589,6 +570,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         "summarize_timeline_period",
         summarize_timeline_period,
         SUMMARIZE_TIMELINE_PERIOD_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
 
     _LOGGER.info("Timeline services registered")

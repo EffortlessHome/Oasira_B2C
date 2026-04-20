@@ -37,6 +37,7 @@ trigger:
   - platform: numeric_state
     entity_id: !input indoortempsensor
     below: !input upcomingweathertempsensor
+    value_template: "{{ value | float(none) }}"
 
 variables:
   indoortemp: !input indoortempsensor

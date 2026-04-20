@@ -43,9 +43,11 @@ trigger:
   - platform: numeric_state
     entity_id: !input tempsensor
     above: !input high_sensor
+    value_template: "{{ value | float(none) }}"
   - platform: numeric_state
     entity_id: !input tempsensor
     below: !input low_sensor
+    value_template: "{{ value | float(none) }}"
 
 action:
   - service: notify.oasira
