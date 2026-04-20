@@ -111,10 +111,7 @@ class TimelineSensor(SensorEntity, RestoreEntity):
                     "confidence": event.confidence,
                     "is_favorite": event.is_favorite,
                     "is_reviewed": event.is_reviewed,
-                    "has_snapshot": event.snapshot_path is not None,
-                    "has_video": event.video_clip_path is not None,
-                    "snapshot_path": event.snapshot_path,
-                    "video_clip_path": event.video_clip_path,
+                    "media_path": event.media_path,
                 })
 
             self._attributes = {
@@ -127,8 +124,7 @@ class TimelineSensor(SensorEntity, RestoreEntity):
                 "last_description": latest.description,
                 "last_labels": latest.labels,
                 "last_metadata": latest.metadata,
-                "last_has_snapshot": latest.snapshot_path is not None,
-                "last_has_video": latest.video_clip_path is not None,
+                "media_path": latest.media_path,
                 "recent_events": events_data,
                 "total_events_today": len([e for e in recent if e.timestamp.date() == dt_util.utcnow().date()]),
                 "last_update": dt_util.utcnow().isoformat(),

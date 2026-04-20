@@ -112,6 +112,19 @@ def _infer_media_kind(file_path: str) -> str | None:
     return None
 
 
+def _resolve_media_path(hass: HomeAssistant, media_path: str) -> str:
+    """Resolve a media path from service data into a readable filesystem path."""
+    normalized_path = media_path.strip().strip('"').strip("'")
+
+    if os.path.isabs(normalized_path):
+        return normalized_path
+
+    if normalized_path.startswith("/"):
+        return hass.config.path(normalized_path.lstrip("/"))
+
+    return hass.config.path(normalized_path)
+
+
 async def _record_camera_clip(
     hass: HomeAssistant,
     camera_entity_id: str,
@@ -325,27 +338,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             if media_path:
                 _LOGGER.debug("Processing media_path: %s", media_path)
-                
-                # Properly resolve the media path
-                if os.path.isabs(media_path):
-                    # Already an absolute path
-                    full_media_path = media_path
-                elif media_path.startswith("/"):
-                    # Relative path starting with /, resolve against config
-                    full_media_path = hass.config.path(media_path.lstrip("/"))
-                else:
-                    # Relative path or needs config resolution
-                    full_media_path = hass.config.path(media_path)
+
+                full_media_path = _resolve_media_path(hass, media_path)
                 
                 _LOGGER.debug("Resolved media_path to: %s", full_media_path)
-                
-                if not os.path.exists(full_media_path):
-                    error_msg = f"media_path does not exist: {media_path} (resolved to: {full_media_path})"
-                    _LOGGER.error(error_msg)
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                    }
 
                 media_kind = _infer_media_kind(full_media_path)
                 _LOGGER.debug("Inferred media kind: %s", media_kind)
@@ -364,7 +360,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         media_data = file_handle.read()
                     _LOGGER.debug("Read %d bytes from media file", len(media_data))
                 except OSError as error:
-                    error_msg = f"failed to read media_path: {error}"
+                    error_msg = f"failed to read media_path {full_media_path}: {error}"
                     _LOGGER.error(error_msg)
                     return {
                         "success": False,

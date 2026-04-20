@@ -47,6 +47,11 @@ class TimelineEvent:
     is_favorite: bool = False
     is_reviewed: bool = False
 
+    @property
+    def media_path(self) -> Optional[str]:
+        """Return the primary media path for the event."""
+        return self.snapshot_path or self.video_clip_path
+
     def to_dict(self) -> dict:
         """Convert to dictionary for storage."""
         return {
