@@ -308,6 +308,7 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
                 model=model,
                 messages=messages,
                 stream=False,
+                timeout=300.0,
             )
 
             # Extract the analysis
@@ -610,6 +611,7 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
                     }
                 ],
                 stream=False,
+                timeout=300.0,
             )
 
             analysis_text = response.get("message", {}).get("content", "")

@@ -57,6 +57,7 @@ class ImageAnalysisFunction(Function):
                 model=model,
                 messages=messages,
                 stream=False,
+                timeout=300.0,
             )
 
             # Extract the analysis from Ollama response

@@ -53,7 +53,7 @@ action:
       title: Temperature Sensor Activated
       message: !input notification_message
 
-  - service: Oasira.create_alert_service
+  - service: oasira_b2c.create_alert_service
     data:
       alert_type: Temperature Sensor Activated
       alert_description: !input notification_message

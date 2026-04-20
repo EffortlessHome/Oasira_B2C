@@ -172,18 +172,6 @@ async def _record_camera_clip(
     return video_data
 
 
-# Schema definitions for timeline services
-CAPTURE_SNAPSHOT_SCHEMA = vol.Schema({
-    vol.Optional("camera_entity_id"): cv.string,
-    vol.Optional("entity_id"): vol.Any(cv.string, [cv.string]),
-    vol.Optional("save_to_timeline", default=True): cv.boolean,
-    vol.Optional("event_type", default="snapshot"): cv.string,
-    vol.Optional("description"): cv.string,
-    vol.Optional("labels", default=[]): cv.ensure_list,
-    vol.Optional("area_id"): cv.string,
-    vol.Optional("area_name"): cv.string,
-})
-
 RECORD_VIDEO_CLIP_SCHEMA = vol.Schema({
     vol.Optional("camera_entity_id"): cv.string,
     vol.Optional("entity_id"): vol.Any(cv.string, [cv.string]),
@@ -247,65 +235,6 @@ def _hours(seconds: float) -> float:
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up timeline services."""
-
-    async def capture_snapshot(call: ServiceCall) -> ServiceResponse:
-        """Capture a snapshot from a camera and optionally save to timeline."""
-        camera_entity_id = _resolve_camera_entity_id(call)
-        save_to_timeline = call.data.get("save_to_timeline", True)
-        event_type = call.data.get("event_type", "snapshot")
-        description = call.data.get("description")
-        labels = _normalize_labels(call.data.get("labels"), default=[])
-        area_id = call.data.get("area_id")
-        area_name = call.data.get("area_name")
-
-        # Get camera state to get camera name
-        camera_state = hass.states.get(camera_entity_id)
-        camera_name = camera_state.name if camera_state else camera_entity_id
-
-        try:
-            # Capture snapshot using camera service
-            import datetime
-            from homeassistant.util import dt as dt_util
-
-            timestamp = dt_util.utcnow()
-            snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_snapshot.jpg"
-            snapshot_path = f"/media/snapshots/{camera_name.replace(' ', '_')}/{snapshot_filename}"
-
-            # Call camera snapshot service
-            await hass.services.async_call(
-                "camera",
-                "snapshot",
-                {"entity_id": camera_entity_id, "filename": snapshot_path},
-                blocking=True,
-            )
-
-            if save_to_timeline:
-                manager = await get_timeline_manager(hass)
-                # Read the saved snapshot
-                import os
-                full_path = hass.config.path(snapshot_path.lstrip("/"))
-                snapshot_data = None
-                if os.path.exists(full_path):
-                    with open(full_path, "rb") as f:
-                        snapshot_data = f.read()
-
-                event = await manager.create_person_detection_event(
-                    camera_entity_id=camera_entity_id,
-                    camera_name=camera_name,
-                    snapshot_data=snapshot_data,
-                    area_id=area_id,
-                    area_name=area_name,
-                    description=description,
-                    labels=labels,
-                )
-
-                return {"success": True, "event_id": event.event_id, "snapshot_path": snapshot_path}
-
-            return {"success": True, "snapshot_path": snapshot_path}
-
-        except Exception as e:
-            _LOGGER.error("Failed to capture snapshot: %s", e)
-            return {"success": False, "error": str(e)}
 
     async def record_video_clip(call: ServiceCall) -> ServiceResponse:
         """Record a video clip from a camera and optionally save to timeline."""
@@ -648,7 +577,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             return {"success": False, "error": str(error)}
 
     # Register services
-    hass.services.async_register(DOMAIN, "capture_snapshot", capture_snapshot, CAPTURE_SNAPSHOT_SCHEMA)
     hass.services.async_register(DOMAIN, "record_video_clip", record_video_clip, RECORD_VIDEO_CLIP_SCHEMA)
     hass.services.async_register(
         DOMAIN,

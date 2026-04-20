@@ -92,53 +92,6 @@ update_entity:
 deploy_latest_config:
   target: {}
 
-# Timeline Services - HomeKit Secure Video-like capability
-capture_snapshot:
-  name: Capture Snapshot
-  description: Capture a snapshot from a camera and save to timeline
-  target:
-    entity:
-      domain:
-        - camera
-  fields:
-    camera_entity_id:
-      description: The camera entity to capture from
-      example: "camera.front_door"
-      selector:
-        entity:
-          domain:
-            - camera
-
-    save_to_timeline:
-      description: Save the snapshot to timeline
-      default: true
-      selector:
-        boolean:
-
-    event_type:
-      description: Type of event (snapshot, motion, person)
-      default: snapshot
-      selector:
-        text:
-
-    description:
-      description: Description for the event
-      example: "Person detected at front door"
-      selector:
-        text:
-
-    labels:
-      description: Labels for the event
-      example: ["person", "front_door"]
-      selector:
-        text:
-          multiple: true
-
-    area_id:
-      description: Area ID for the event
-      selector:
-        area:
-
 record_video_clip:
   name: Record Video Clip
   description: Record a short video clip from a camera and save to timeline

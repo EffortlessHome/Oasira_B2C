@@ -39,7 +39,7 @@ action:
       message: !input notification_message
       data:
         priority: high
-  - service: Oasira.create_alert_service
+  - service: oasira_b2c.create_alert_service
     data:
       alert_type: "Carbon Monoxide Alarm"
       alert_description: !input notification_message

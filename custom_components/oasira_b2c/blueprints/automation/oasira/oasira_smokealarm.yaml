@@ -37,7 +37,7 @@ action:
       message: !input notification_message
       title: Smoke Alarm Activated
 
-  - service: Oasira.create_alert_service
+  - service: oasira_b2c.create_alert_service
     data:
       alert_type: Smoke Alarm Activated
       alert_description: !input notification_message

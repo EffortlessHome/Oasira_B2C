@@ -74,6 +74,7 @@ Provide a clear, concise response for each category."""
                 model=model,
                 messages=messages,
                 stream=False,
+                timeout=300.0,
             )
 
             # Extract the analysis from Ollama response

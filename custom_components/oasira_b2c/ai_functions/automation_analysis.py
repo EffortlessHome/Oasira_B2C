@@ -1094,7 +1094,7 @@ IMPORTANT:
                     }
                 ],
                 stream=False,  # Non-streaming for easier parsing
-                timeout=getattr(client, 'timeout', 120.0),  # Use client's configured timeout with fallback
+                timeout=300.0,  # 5 minute timeout for complex pattern analysis
             )
             
             _LOGGER.info("Ollama API call completed successfully")
