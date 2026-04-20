@@ -183,21 +183,13 @@ record_video_clip:
 
 create_timeline_event:
   name: Create Timeline Event
-  description: Create a timeline event for any sensor or device, with optional camera snapshot/video capture and automatic entity state capture
+  description: Create a timeline event for any sensor or device with automatic entity state capture
   fields:
     entity_id:
-      description: The entity ID (sensor, device, etc.) that generated the event. Required when camera_entity_id is not provided.
+      description: The entity ID (sensor, device, etc.) that generated the event.
       example: "sensor.temperature_living_room"
       selector:
         entity:
-
-    camera_entity_id:
-      description: Optional camera entity ID to capture snapshot and/or record a clip for this event
-      example: "camera.front_door"
-      selector:
-        entity:
-          domain:
-            - camera
 
     entity_name:
       description: Display name for the entity
@@ -212,35 +204,11 @@ create_timeline_event:
       selector:
         text:
 
-    snapshot_data:
-      description: Base64 encoded snapshot image
+    media_path:
+      description: Local path to an image or video file to attach to the timeline event
+      example: "/config/media/snapshots/front_door/latest.jpg"
       selector:
         text:
-
-    capture_snapshot:
-      description: Capture a snapshot from camera_entity_id and attach it if snapshot_data is not provided
-      default: false
-      selector:
-        boolean:
-
-    video_clip_data:
-      description: Base64 encoded video clip
-      selector:
-        text:
-
-    record_video:
-      description: Record a short video clip from camera_entity_id and attach it if video_clip_data is not provided
-      default: false
-      selector:
-        boolean:
-
-    video_duration:
-      description: Duration of video clip in seconds
-      default: 5
-      selector:
-        number:
-          min: 1
-          max: 60
 
     confidence:
       description: Detection confidence (0.0-1.0)
@@ -256,33 +224,6 @@ create_timeline_event:
 
     description:
       description: Event description
-      selector:
-        text:
-
-update_timeline_event:
-  name: Update Timeline Event
-  description: Update a timeline event (mark as reviewed, toggle favorite)
-  target: {}
-  fields:
-    event_id:
-      description: The event ID to update
-      example: "abc12345"
-      required: true
-      selector:
-        text:
-
-    is_reviewed:
-      description: Mark event as reviewed
-      selector:
-        boolean:
-
-    is_favorite:
-      description: Toggle favorite status
-      selector:
-        boolean:
-
-    description:
-      description: Update event description
       selector:
         text:
 

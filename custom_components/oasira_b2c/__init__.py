@@ -126,6 +126,7 @@ LOCATION_SERVICE_SCHEMA = vol.Schema(
 )
 
 _LOGGER = logging.getLogger(__name__)
+LEGACY_DOMAIN = "oasira"
 
 GOOGLE_OAUTH_URL = "https://oauth2.googleapis.com/token"
 FIREBASE_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
@@ -845,6 +846,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Unregister the notify service
     hass.services.async_remove("Oasira", "notify")
 
+    # Remove backward-compatible service aliases if present
+    if hass.services.has_service(DOMAIN, "create_alert_service"):
+        hass.services.async_remove(DOMAIN, "create_alert_service")
+    if hass.services.has_service(LEGACY_DOMAIN, "create_alert_service"):
+        hass.services.async_remove(LEGACY_DOMAIN, "create_alert_service")
+
     webhook.async_unregister(hass, "oasira_push_token")
     webhook.async_unregister(hass, "oasira_remove_push_token")
     webhook.async_unregister(hass, "oasira_location_update")
@@ -900,6 +907,9 @@ def register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "update_entity", update_entity)
 
     hass.services.async_register(DOMAIN, "create_alert", create_alert)
+    # Backward compatibility for legacy automation calls.
+    hass.services.async_register(DOMAIN, "create_alert_service", create_alert)
+    hass.services.async_register(LEGACY_DOMAIN, "create_alert_service", create_alert)
 
     hass.services.async_register(
         DOMAIN, "deploy_latest_config", handle_deploy_latest_config

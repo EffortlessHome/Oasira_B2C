@@ -146,11 +146,8 @@ action:
         target:
           entity_id: !input camera
         data:
-          camera_entity_id: !input camera
           entity_name: "{{ camera_name }}"
           event_type: "{{ event_type }}"
-          record_video: true
-          video_duration: 5
           description: "{{ trigger_name }} activity on {{ camera_name }}"
 
   # Send notification if enabled

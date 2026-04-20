@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import base64
 import logging
+import mimetypes
 import os
 
 import voluptuous as vol
@@ -12,8 +12,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
-from .timeline_event import SIGNAL_TIMELINE_UPDATED, get_timeline_manager
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from .timeline_event import get_timeline_manager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,6 +94,24 @@ def _build_entity_state_metadata(entity_state) -> dict:
     }
 
 
+def _infer_media_kind(file_path: str) -> str | None:
+    """Infer whether a file is an image or video based on mime/ext."""
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type:
+        if mime_type.startswith("image/"):
+            return "image"
+        if mime_type.startswith("video/"):
+            return "video"
+
+    extension = os.path.splitext(file_path)[1].lower()
+    if extension in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}:
+        return "image"
+    if extension in {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v"}:
+        return "video"
+
+    return None
+
+
 async def _record_camera_clip(
     hass: HomeAssistant,
     camera_entity_id: str,
@@ -140,45 +157,6 @@ async def _record_camera_clip(
     return video_data
 
 
-async def _capture_camera_snapshot(
-    hass: HomeAssistant,
-    camera_entity_id: str,
-    camera_name: str,
-) -> bytes | None:
-    """Capture a temporary snapshot from a camera and return its bytes."""
-    from homeassistant.util import dt as dt_util
-
-    timestamp = dt_util.utcnow()
-    camera_slug = camera_name.replace(" ", "_")
-    snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_snapshot.jpg"
-    snapshot_dir = hass.config.path(f"media/snapshots/{camera_slug}")
-    os.makedirs(snapshot_dir, exist_ok=True)
-
-    full_snapshot_path = hass.config.path(f"media/snapshots/{camera_slug}/{snapshot_filename}")
-
-    await hass.services.async_call(
-        "camera",
-        "snapshot",
-        {
-            "entity_id": camera_entity_id,
-            "filename": full_snapshot_path,
-        },
-        blocking=True,
-    )
-
-    if not os.path.exists(full_snapshot_path):
-        return None
-
-    try:
-        with open(full_snapshot_path, "rb") as file_handle:
-            return file_handle.read()
-    finally:
-        try:
-            os.remove(full_snapshot_path)
-        except OSError:
-            _LOGGER.debug("Failed to remove temporary snapshot: %s", full_snapshot_path)
-
-
 # Schema definitions for timeline services
 CAPTURE_SNAPSHOT_SCHEMA = vol.Schema({
     vol.Optional("camera_entity_id"): cv.string,
@@ -202,23 +180,11 @@ RECORD_VIDEO_CLIP_SCHEMA = vol.Schema({
     vol.Optional("area_name"): cv.string,
 })
 
-UPDATE_EVENT_SCHEMA = vol.Schema({
-    vol.Required("event_id"): cv.string,
-    vol.Optional("is_reviewed"): cv.boolean,
-    vol.Optional("is_favorite"): cv.boolean,
-    vol.Optional("description"): cv.string,
-})
-
 CREATE_TIMELINE_EVENT_SCHEMA = vol.Schema({
-    vol.Optional("entity_id"): cv.string,
-    vol.Optional("camera_entity_id"): cv.string,
+    vol.Required("entity_id"): cv.string,
     vol.Optional("entity_name"): cv.string,
     vol.Required("event_type"): cv.string,
-    vol.Optional("snapshot_data"): cv.string,
-    vol.Optional("capture_snapshot", default=False): cv.boolean,
-    vol.Optional("video_clip_data"): cv.string,
-    vol.Optional("record_video", default=False): cv.boolean,
-    vol.Optional("video_duration", default=5): cv.positive_int,
+    vol.Optional("media_path"): cv.string,
     vol.Optional("confidence"): vol.Coerce(float),
     vol.Optional("area_name"): cv.string,
     vol.Optional("description"): cv.string,
@@ -336,102 +302,54 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Failed to record video clip: %s", e)
             return {"success": False, "error": str(e)}
 
-    async def update_timeline_event(call: ServiceCall) -> ServiceResponse:
-        """Update a timeline event."""
-        event_id = call.data["event_id"]
-        is_reviewed = call.data.get("is_reviewed")
-        is_favorite = call.data.get("is_favorite")
-        description = call.data.get("description")
-
-        try:
-            manager = await get_timeline_manager(hass)
-
-            # Find and update event
-            for event in manager._events:
-                if event.event_id == event_id:
-                    if is_reviewed is not None:
-                        event.is_reviewed = is_reviewed
-                    if is_favorite is not None:
-                        event.is_favorite = is_favorite
-                    if description is not None:
-                        event.description = description
-                    async_dispatcher_send(hass, SIGNAL_TIMELINE_UPDATED)
-                    return {"success": True, "event_id": event_id}
-
-            return {"success": False, "error": "Event not found"}
-
-        except Exception as e:
-            _LOGGER.error("Failed to update timeline event: %s", e)
-            return {"success": False, "error": str(e)}
-
     async def create_timeline_event(call: ServiceCall) -> ServiceResponse:
         """Create a generic timeline event for any sensor or device."""
         try:
-            camera_entity_id = call.data.get("camera_entity_id")
-            entity_id = call.data.get("entity_id") or camera_entity_id
-            if not entity_id:
-                return {
-                    "success": False,
-                    "error": "entity_id or camera_entity_id is required",
-                }
+            entity_id = call.data["entity_id"]
 
             entity_state = hass.states.get(entity_id)
             entity_name = call.data.get("entity_name") or (
                 entity_state.name if entity_state else entity_id
             )
             event_type = call.data["event_type"]
-            snapshot_b64 = call.data.get("snapshot_data")
-            capture_snapshot = call.data.get("capture_snapshot", False)
-            video_b64 = call.data.get("video_clip_data")
-            record_video = call.data.get("record_video", False)
-            video_duration = call.data.get("video_duration", 5)
+            media_path = call.data.get("media_path")
             area_name = call.data.get("area_name")
             description = call.data.get("description")
             confidence = call.data.get("confidence")
             metadata = _build_entity_state_metadata(entity_state)
+            snapshot_data = None
+            video_data = None
+
+            if media_path:
+                full_media_path = hass.config.path(media_path.lstrip("/")) if media_path.startswith("/") else media_path
+                if not os.path.exists(full_media_path):
+                    return {
+                        "success": False,
+                        "error": f"media_path does not exist: {media_path}",
+                    }
+
+                media_kind = _infer_media_kind(full_media_path)
+                if media_kind is None:
+                    return {
+                        "success": False,
+                        "error": "media_path must point to an image or video file",
+                    }
+
+                try:
+                    with open(full_media_path, "rb") as file_handle:
+                        media_data = file_handle.read()
+                except OSError as error:
+                    return {
+                        "success": False,
+                        "error": f"failed to read media_path: {error}",
+                    }
+
+                if media_kind == "image":
+                    snapshot_data = media_data
+                else:
+                    video_data = media_data
 
             manager = await get_timeline_manager(hass)
-
-            snapshot_data = None
-            if snapshot_b64:
-                try:
-                    snapshot_data = base64.b64decode(snapshot_b64)
-                except Exception as e:
-                    _LOGGER.warning("Failed to decode snapshot data: %s", e)
-            elif capture_snapshot and camera_entity_id:
-                try:
-                    snapshot_data = await _capture_camera_snapshot(
-                        hass,
-                        camera_entity_id,
-                        entity_name,
-                    )
-                except Exception as e:
-                    _LOGGER.warning(
-                        "Failed to capture snapshot for timeline event on %s: %s",
-                        camera_entity_id,
-                        e,
-                    )
-
-            video_data = None
-            if video_b64:
-                try:
-                    video_data = base64.b64decode(video_b64)
-                except Exception as e:
-                    _LOGGER.warning("Failed to decode video data: %s", e)
-            elif record_video and camera_entity_id:
-                try:
-                    video_data = await _record_camera_clip(
-                        hass,
-                        camera_entity_id,
-                        entity_name,
-                        video_duration,
-                    )
-                except Exception as e:
-                    _LOGGER.warning(
-                        "Failed to record clip for timeline event on %s: %s",
-                        camera_entity_id,
-                        e,
-                    )
 
             event = await manager.create_event(
                 entity_id=entity_id,
@@ -439,7 +357,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 event_type=event_type,
                 snapshot_data=snapshot_data,
                 video_clip_data=video_data,
-                video_duration=video_duration,
                 area_name=area_name,
                 description=description,
                 confidence=confidence,
@@ -467,7 +384,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         create_timeline_event,
         CREATE_TIMELINE_EVENT_SCHEMA,
     )
-    hass.services.async_register(DOMAIN, "update_timeline_event", update_timeline_event, UPDATE_EVENT_SCHEMA)
 
     _LOGGER.info("Timeline services registered")
 
