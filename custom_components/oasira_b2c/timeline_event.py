@@ -148,9 +148,14 @@ class TimelineManager:
 
     def get_camera_media_dir(self, camera_name: str) -> Path:
         """Get the media directory for a camera."""
-        camera_dir = self._media_dir / camera_name.replace(" ", "_")
-        camera_dir.mkdir(parents=True, exist_ok=True)
-        return camera_dir
+        try:
+            camera_dir = self._media_dir / camera_name.replace(" ", "_")
+            camera_dir.mkdir(parents=True, exist_ok=True)
+            _LOGGER.debug("Created/verified camera media directory: %s", camera_dir)
+            return camera_dir
+        except Exception as e:
+            _LOGGER.error("Failed to create camera media directory for %s: %s", camera_name, e)
+            raise
 
     async def create_person_detection_event(
         self,
@@ -174,23 +179,30 @@ class TimelineManager:
         snapshot_path = None
         thumbnail_path = None
         if snapshot_data:
-            camera_dir = self.get_camera_media_dir(camera_name)
-            snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_snapshot.jpg"
-            snapshot_path = str(camera_dir / snapshot_filename)
-            with open(snapshot_path, "wb") as f:
-                f.write(snapshot_data)
-            thumbnail_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_thumb.jpg"
-            thumbnail_path = str(camera_dir / thumbnail_filename)
-            # Thumbnails are same as snapshot for now (could optimize later)
+            try:
+                camera_dir = self.get_camera_media_dir(camera_name)
+                snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_snapshot.jpg"
+                snapshot_path = str(camera_dir / snapshot_filename)
+                with open(snapshot_path, "wb") as f:
+                    f.write(snapshot_data)
+                thumbnail_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_thumb.jpg"
+                thumbnail_path = str(camera_dir / thumbnail_filename)
+            except Exception as e:
+                _LOGGER.error("Failed to save person detection snapshot: %s", e)
+                raise
 
         # Save video clip if provided
         video_clip_path = None
         if video_clip_data:
-            camera_dir = self.get_camera_media_dir(camera_name)
-            video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_clip.mp4"
-            video_clip_path = str(camera_dir / video_filename)
-            with open(video_clip_path, "wb") as f:
-                f.write(video_clip_data)
+            try:
+                camera_dir = self.get_camera_media_dir(camera_name)
+                video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_clip.mp4"
+                video_clip_path = str(camera_dir / video_filename)
+                with open(video_clip_path, "wb") as f:
+                    f.write(video_clip_data)
+            except Exception as e:
+                _LOGGER.error("Failed to save person detection video: %s", e)
+                raise
 
         event = TimelineEvent(
             event_id=event_id,
@@ -198,6 +210,27 @@ class TimelineManager:
             event_type="person_detected",
             camera_entity_id=camera_entity_id,
             camera_name=camera_name,
+            area_id=area_id,
+            area_name=area_name,
+            snapshot_path=snapshot_path,
+            video_clip_path=video_clip_path,
+            video_duration=video_duration if video_clip_data else None,
+            thumbnail_path=thumbnail_path,
+            description=description,
+            confidence=confidence,
+            labels=labels or [],
+            metadata=metadata or {},
+        )
+
+        self._events.append(event)
+        await self._save_events()
+        self._notify_timeline_updated()
+
+        _LOGGER.info(
+            "Created timeline event %s for camera %s: person detected",
+            event_id, camera_name
+        )
+        return event
             area_id=area_id,
             area_name=area_name,
             snapshot_path=snapshot_path,
@@ -236,11 +269,15 @@ class TimelineManager:
 
         video_clip_path = None
         if video_clip_data:
-            camera_dir = self.get_camera_media_dir(camera_name)
-            video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_motion.mp4"
-            video_clip_path = str(camera_dir / video_filename)
-            with open(video_clip_path, "wb") as f:
-                f.write(video_clip_data)
+            try:
+                camera_dir = self.get_camera_media_dir(camera_name)
+                video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_motion.mp4"
+                video_clip_path = str(camera_dir / video_filename)
+                with open(video_clip_path, "wb") as f:
+                    f.write(video_clip_data)
+            except Exception as e:
+                _LOGGER.error("Failed to save motion video: %s", e)
+                raise
 
         event = TimelineEvent(
             event_id=event_id,
@@ -353,22 +390,37 @@ class TimelineManager:
         snapshot_path = None
         thumbnail_path = None
         if snapshot_data:
-            camera_dir = self.get_camera_media_dir(entity_name)
-            snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_snapshot.jpg"
-            snapshot_path = str(camera_dir / snapshot_filename)
-            with open(snapshot_path, "wb") as f:
-                f.write(snapshot_data)
-            thumbnail_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_thumb.jpg"
-            thumbnail_path = str(camera_dir / thumbnail_filename)
+            try:
+                _LOGGER.debug("Saving snapshot for entity %s", entity_name)
+                camera_dir = self.get_camera_media_dir(entity_name)
+                snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_snapshot.jpg"
+                snapshot_path = str(camera_dir / snapshot_filename)
+                
+                with open(snapshot_path, "wb") as f:
+                    f.write(snapshot_data)
+                _LOGGER.debug("Saved snapshot to %s (%d bytes)", snapshot_path, len(snapshot_data))
+                
+                thumbnail_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_thumb.jpg"
+                thumbnail_path = str(camera_dir / thumbnail_filename)
+            except Exception as e:
+                _LOGGER.error("Failed to save snapshot: %s", e)
+                raise
 
         # Save video clip if provided
         video_clip_path = None
         if video_clip_data:
-            camera_dir = self.get_camera_media_dir(entity_name)
-            video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_clip.mp4"
-            video_clip_path = str(camera_dir / video_filename)
-            with open(video_clip_path, "wb") as f:
-                f.write(video_clip_data)
+            try:
+                _LOGGER.debug("Saving video clip for entity %s", entity_name)
+                camera_dir = self.get_camera_media_dir(entity_name)
+                video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_clip.mp4"
+                video_clip_path = str(camera_dir / video_filename)
+                
+                with open(video_clip_path, "wb") as f:
+                    f.write(video_clip_data)
+                _LOGGER.debug("Saved video clip to %s (%d bytes)", video_clip_path, len(video_clip_data))
+            except Exception as e:
+                _LOGGER.error("Failed to save video clip: %s", e)
+                raise
 
         event = TimelineEvent(
             event_id=event_id,

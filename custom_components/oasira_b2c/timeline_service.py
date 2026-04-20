@@ -305,7 +305,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def create_timeline_event(call: ServiceCall) -> ServiceResponse:
         """Create a generic timeline event for any sensor or device."""
         try:
+            _LOGGER.debug("create_timeline_event called with data: %s", call.data)
+            
             entity_id = call.data["entity_id"]
+            _LOGGER.debug("entity_id: %s", entity_id)
 
             entity_state = hass.states.get(entity_id)
             entity_name = call.data.get("entity_name") or (
@@ -321,27 +324,51 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             video_data = None
 
             if media_path:
-                full_media_path = hass.config.path(media_path.lstrip("/")) if media_path.startswith("/") else media_path
+                _LOGGER.debug("Processing media_path: %s", media_path)
+                
+                # Properly resolve the media path
+                if os.path.isabs(media_path):
+                    # Already an absolute path
+                    full_media_path = media_path
+                elif media_path.startswith("/"):
+                    # Relative path starting with /, resolve against config
+                    full_media_path = hass.config.path(media_path.lstrip("/"))
+                else:
+                    # Relative path or needs config resolution
+                    full_media_path = hass.config.path(media_path)
+                
+                _LOGGER.debug("Resolved media_path to: %s", full_media_path)
+                
                 if not os.path.exists(full_media_path):
+                    error_msg = f"media_path does not exist: {media_path} (resolved to: {full_media_path})"
+                    _LOGGER.error(error_msg)
                     return {
                         "success": False,
-                        "error": f"media_path does not exist: {media_path}",
+                        "error": error_msg,
                     }
 
                 media_kind = _infer_media_kind(full_media_path)
+                _LOGGER.debug("Inferred media kind: %s", media_kind)
+                
                 if media_kind is None:
+                    error_msg = f"media_path must point to an image or video file: {full_media_path}"
+                    _LOGGER.error(error_msg)
                     return {
                         "success": False,
-                        "error": "media_path must point to an image or video file",
+                        "error": error_msg,
                     }
 
                 try:
+                    _LOGGER.debug("Reading media file: %s", full_media_path)
                     with open(full_media_path, "rb") as file_handle:
                         media_data = file_handle.read()
+                    _LOGGER.debug("Read %d bytes from media file", len(media_data))
                 except OSError as error:
+                    error_msg = f"failed to read media_path: {error}"
+                    _LOGGER.error(error_msg)
                     return {
                         "success": False,
-                        "error": f"failed to read media_path: {error}",
+                        "error": error_msg,
                     }
 
                 if media_kind == "image":
@@ -349,7 +376,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 else:
                     video_data = media_data
 
+            _LOGGER.debug("Getting timeline manager...")
             manager = await get_timeline_manager(hass)
+            
+            _LOGGER.debug("Creating event: entity_id=%s, entity_name=%s, event_type=%s, snapshot_data=%s, video_data=%s",
+                         entity_id, entity_name, event_type, snapshot_data is not None, video_data is not None)
 
             event = await manager.create_event(
                 entity_id=entity_id,
@@ -363,6 +394,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 metadata=metadata,
             )
 
+            _LOGGER.info("Successfully created timeline event: %s", event.event_id)
+            
             return {
                 "success": True,
                 "event_id": event.event_id,
@@ -372,8 +405,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             }
 
         except Exception as e:
-            _LOGGER.error("Failed to create event: %s", e)
-            return {"success": False, "error": str(e)}
+            import traceback
+            error_msg = f"Failed to create event: {e}"
+            _LOGGER.error(error_msg)
+            _LOGGER.error("Traceback: %s", traceback.format_exc())
+            return {"success": False, "error": error_msg}
 
     # Register services
     hass.services.async_register(DOMAIN, "capture_snapshot", capture_snapshot, CAPTURE_SNAPSHOT_SCHEMA)
