@@ -231,27 +231,6 @@ class TimelineManager:
             event_id, camera_name
         )
         return event
-            area_id=area_id,
-            area_name=area_name,
-            snapshot_path=snapshot_path,
-            video_clip_path=video_clip_path,
-            video_duration=video_duration if video_clip_data else None,
-            thumbnail_path=thumbnail_path,
-            description=description,
-            confidence=confidence,
-            labels=labels or [],
-            metadata=metadata or {},
-        )
-
-        self._events.append(event)
-        await self._save_events()
-        self._notify_timeline_updated()
-
-        _LOGGER.info(
-            "Created timeline event %s for camera %s: person detected",
-            event_id, camera_name
-        )
-        return event
 
     async def create_motion_event(
         self,
