@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import mimetypes
 import os
+from datetime import datetime, timedelta
 
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.helpers import config_validation as cv
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .timeline_event import get_timeline_manager
@@ -202,6 +204,46 @@ CREATE_TIMELINE_EVENT_SCHEMA = vol.Schema({
     vol.Optional("area_name"): cv.string,
     vol.Optional("description"): cv.string,
 })
+
+SUMMARIZE_TIMELINE_PERIOD_SCHEMA = vol.Schema({
+    vol.Optional("start_time"): cv.string,
+    vol.Optional("end_time"): cv.string,
+    vol.Optional("hours_back", default=24): vol.All(
+        vol.Coerce(int), vol.Range(min=1, max=24 * 30)
+    ),
+    vol.Optional("include_entities", default=[]): [cv.string],
+})
+
+
+def _parse_service_datetime(value: str | None) -> datetime | None:
+    """Parse an ISO datetime from service input and normalize to UTC."""
+    if not value:
+        return None
+
+    parsed = dt_util.parse_datetime(value)
+    if parsed is None:
+        raise vol.Invalid(f"Invalid datetime: {value}")
+
+    if parsed.tzinfo is None:
+        parsed = dt_util.as_local(parsed)
+
+    return dt_util.as_utc(parsed)
+
+
+def _is_on_state(state: str) -> bool:
+    """Return True when a state should be treated as active/on."""
+    lowered = state.lower()
+    return lowered not in {"off", "idle", "standby", "unavailable", "unknown", "none", "not_home"}
+
+
+def _is_home_state(state: str) -> bool:
+    """Return True when occupancy state indicates someone is home."""
+    return state.lower() in {"home", "on", "present"}
+
+
+def _hours(seconds: float) -> float:
+    """Convert seconds to rounded hours."""
+    return round(seconds / 3600, 2)
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up timeline services."""
@@ -407,6 +449,204 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Traceback: %s", traceback.format_exc())
             return {"success": False, "error": error_msg}
 
+    async def summarize_timeline_period(call: ServiceCall) -> ServiceResponse:
+        """Summarize timeline data over a period and compute duration-based insights."""
+        try:
+            start_time = _parse_service_datetime(call.data.get("start_time"))
+            end_time = _parse_service_datetime(call.data.get("end_time"))
+            hours_back = call.data.get("hours_back", 24)
+            include_entities = set(call.data.get("include_entities", []))
+
+            now_utc = dt_util.utcnow()
+            period_end = end_time or now_utc
+            period_start = start_time or (period_end - timedelta(hours=hours_back))
+
+            if period_start >= period_end:
+                return {
+                    "success": False,
+                    "error": "start_time must be before end_time",
+                }
+
+            manager = await get_timeline_manager(hass)
+            all_events = sorted(manager._events, key=lambda event: event.timestamp)  # noqa: SLF001
+
+            tracked_events: list[tuple[str, datetime, str]] = []
+            for event in all_events:
+                entity_id = event.camera_entity_id
+                if include_entities and entity_id not in include_entities:
+                    continue
+
+                if event.timestamp > period_end:
+                    continue
+
+                metadata = event.metadata or {}
+                entity_state = metadata.get("entity_state", {})
+                state_value = entity_state.get("state")
+                if not isinstance(state_value, str):
+                    continue
+
+                tracked_events.append((entity_id, event.timestamp, state_value))
+
+            if not tracked_events:
+                return {
+                    "success": True,
+                    "period": {
+                        "start": period_start.isoformat(),
+                        "end": period_end.isoformat(),
+                        "hours": _hours((period_end - period_start).total_seconds()),
+                    },
+                    "summary": "No timeline state events were found for the selected period.",
+                    "metrics": {
+                        "lights_on_hours": 0.0,
+                        "appliances_running_hours": 0.0,
+                        "someone_home_hours": 0.0,
+                        "no_one_home_hours": 0.0,
+                    },
+                }
+
+            events_by_entity: dict[str, list[tuple[datetime, str]]] = {}
+            for entity_id, timestamp, state_value in tracked_events:
+                events_by_entity.setdefault(entity_id, []).append((timestamp, state_value))
+
+            lights_on_seconds = 0.0
+            appliances_running_seconds = 0.0
+            home_event_changes: list[tuple[datetime, str, str]] = []
+
+            appliance_domains = {
+                "switch",
+                "fan",
+                "climate",
+                "humidifier",
+                "dehumidifier",
+                "vacuum",
+                "water_heater",
+            }
+
+            per_entity_hours: dict[str, dict[str, float]] = {}
+
+            for entity_id, states in events_by_entity.items():
+                domain = entity_id.split(".", 1)[0] if "." in entity_id else ""
+                states.sort(key=lambda item: item[0])
+
+                baseline_state: str | None = None
+                for timestamp, state_value in states:
+                    if timestamp <= period_start:
+                        baseline_state = state_value
+                    else:
+                        break
+
+                state_points: list[tuple[datetime, str]] = []
+                if baseline_state is not None:
+                    state_points.append((period_start, baseline_state))
+
+                for timestamp, state_value in states:
+                    if period_start < timestamp <= period_end:
+                        state_points.append((timestamp, state_value))
+
+                if not state_points:
+                    continue
+
+                entity_light_seconds = 0.0
+                entity_appliance_seconds = 0.0
+
+                for index, (timestamp, state_value) in enumerate(state_points):
+                    next_timestamp = (
+                        state_points[index + 1][0]
+                        if index + 1 < len(state_points)
+                        else period_end
+                    )
+
+                    interval_seconds = (next_timestamp - timestamp).total_seconds()
+                    if interval_seconds <= 0:
+                        continue
+
+                    if domain == "light" and _is_on_state(state_value):
+                        lights_on_seconds += interval_seconds
+                        entity_light_seconds += interval_seconds
+
+                    if domain in appliance_domains and _is_on_state(state_value):
+                        appliances_running_seconds += interval_seconds
+                        entity_appliance_seconds += interval_seconds
+
+                if domain in {"person", "device_tracker"}:
+                    for timestamp, state_value in state_points:
+                        home_event_changes.append((timestamp, entity_id, state_value))
+
+                if entity_light_seconds or entity_appliance_seconds:
+                    per_entity_hours[entity_id] = {
+                        "light_on_hours": _hours(entity_light_seconds),
+                        "appliance_running_hours": _hours(entity_appliance_seconds),
+                    }
+
+            someone_home_seconds = 0.0
+            no_one_home_seconds = 0.0
+
+            if home_event_changes:
+                home_event_changes.sort(key=lambda item: item[0])
+                home_state_by_entity: dict[str, str] = {}
+
+                for timestamp, entity_id, state_value in home_event_changes:
+                    if timestamp == period_start:
+                        home_state_by_entity[entity_id] = state_value
+
+                cursor_time = period_start
+                for timestamp, entity_id, state_value in home_event_changes:
+                    if timestamp < period_start:
+                        home_state_by_entity[entity_id] = state_value
+                        continue
+                    if timestamp > period_end:
+                        break
+
+                    interval_seconds = (timestamp - cursor_time).total_seconds()
+                    if interval_seconds > 0:
+                        if any(_is_home_state(state) for state in home_state_by_entity.values()):
+                            someone_home_seconds += interval_seconds
+                        else:
+                            no_one_home_seconds += interval_seconds
+
+                    home_state_by_entity[entity_id] = state_value
+                    cursor_time = timestamp
+
+                final_interval_seconds = (period_end - cursor_time).total_seconds()
+                if final_interval_seconds > 0:
+                    if any(_is_home_state(state) for state in home_state_by_entity.values()):
+                        someone_home_seconds += final_interval_seconds
+                    else:
+                        no_one_home_seconds += final_interval_seconds
+
+            period_hours = _hours((period_end - period_start).total_seconds())
+            lights_on_hours = _hours(lights_on_seconds)
+            appliances_running_hours = _hours(appliances_running_seconds)
+            someone_home_hours = _hours(someone_home_seconds)
+            no_one_home_hours = _hours(no_one_home_seconds)
+
+            summary = (
+                f"From {period_start.isoformat()} to {period_end.isoformat()}, "
+                f"lights were on for {lights_on_hours}h, appliances ran for {appliances_running_hours}h, "
+                f"someone was home for {someone_home_hours}h, and no one was home for {no_one_home_hours}h."
+            )
+
+            return {
+                "success": True,
+                "period": {
+                    "start": period_start.isoformat(),
+                    "end": period_end.isoformat(),
+                    "hours": period_hours,
+                },
+                "summary": summary,
+                "metrics": {
+                    "lights_on_hours": lights_on_hours,
+                    "appliances_running_hours": appliances_running_hours,
+                    "someone_home_hours": someone_home_hours,
+                    "no_one_home_hours": no_one_home_hours,
+                },
+                "per_entity_hours": per_entity_hours,
+                "events_analyzed": len(tracked_events),
+            }
+        except Exception as error:
+            _LOGGER.error("Failed to summarize timeline period: %s", error, exc_info=True)
+            return {"success": False, "error": str(error)}
+
     # Register services
     hass.services.async_register(DOMAIN, "capture_snapshot", capture_snapshot, CAPTURE_SNAPSHOT_SCHEMA)
     hass.services.async_register(DOMAIN, "record_video_clip", record_video_clip, RECORD_VIDEO_CLIP_SCHEMA)
@@ -415,6 +655,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         "create_timeline_event",
         create_timeline_event,
         CREATE_TIMELINE_EVENT_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "summarize_timeline_period",
+        summarize_timeline_period,
+        SUMMARIZE_TIMELINE_PERIOD_SCHEMA,
     )
 
     _LOGGER.info("Timeline services registered")

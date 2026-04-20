@@ -28,8 +28,6 @@ trigger:
   - platform: state
     entity_id: !input watersensor
     to: "on"
-variables:
-  clickActionURL: !input data_clickaction_url
 
 action:
   - service: notify.oasira

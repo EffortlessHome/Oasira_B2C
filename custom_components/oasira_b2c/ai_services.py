@@ -1,6 +1,7 @@
 """Services for the Oasira AI Conversation component."""
 
 import base64
+import json
 import logging
 import mimetypes
 from pathlib import Path
@@ -64,6 +65,19 @@ SCAN_HOME_AUTOMATION_PATTERNS_SCHEMA = vol.Schema(
         vol.Optional("results_file", default="automation_analysis_results.yaml"): cv.string,
         vol.Optional("create_automations", default=True): cv.boolean,
         vol.Optional("automations_file", default="automations.yaml"): cv.string,
+    }
+)
+
+EVALUATE_TIMELINE_ACTIVITY_SCHEMA = vol.Schema(
+    {
+        vol.Optional("sensor_entity_id", default="sensor.oasira_timeline_activity"): cv.entity_id,
+        vol.Optional("max_events", default=20): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional("suggestion_count", default=5): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=20)
+        ),
+        vol.Optional("focus_areas", default=[]): [cv.string],
     }
 )
 
@@ -501,6 +515,135 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
 
         return response_dict
 
+    async def evaluate_timeline_activity(call: ServiceCall) -> ServiceResponse:
+        """Evaluate timeline activity and suggest homeowner optimizations."""
+        try:
+            sensor_entity_id = call.data["sensor_entity_id"]
+            max_events = call.data["max_events"]
+            suggestion_count = call.data["suggestion_count"]
+            focus_areas = call.data["focus_areas"]
+
+            timeline_state = hass.states.get(sensor_entity_id)
+            if timeline_state is None:
+                raise HomeAssistantError(
+                    f"Timeline sensor '{sensor_entity_id}' was not found"
+                )
+
+            timeline_attrs = dict(timeline_state.attributes)
+            recent_events = timeline_attrs.get("recent_events", [])
+            if not isinstance(recent_events, list):
+                recent_events = []
+
+            selected_events: list[dict[str, Any]] = []
+            for event in recent_events[:max_events]:
+                if not isinstance(event, dict):
+                    continue
+
+                selected_events.append(
+                    {
+                        "event_id": event.get("event_id"),
+                        "event_type": event.get("event_type"),
+                        "timestamp": event.get("timestamp"),
+                        "entity_id": event.get("entity_id"),
+                        "entity_name": event.get("entity_name"),
+                        "area_name": event.get("area_name"),
+                        "description": event.get("description"),
+                        "confidence": event.get("confidence"),
+                        "media_path": event.get("media_path"),
+                    }
+                )
+
+            if not selected_events and timeline_attrs.get("last_event_id"):
+                selected_events.append(
+                    {
+                        "event_id": timeline_attrs.get("last_event_id"),
+                        "event_type": timeline_attrs.get("last_event_type"),
+                        "entity_id": timeline_attrs.get("last_entity_id"),
+                        "entity_name": timeline_attrs.get("last_entity_name"),
+                        "area_name": timeline_attrs.get("last_area_name"),
+                        "description": timeline_attrs.get("last_description"),
+                        "media_path": timeline_attrs.get("media_path"),
+                    }
+                )
+
+            if not selected_events:
+                raise HomeAssistantError(
+                    "No timeline events were available to evaluate"
+                )
+
+            settings = _get_integration_settings(hass)
+            model = settings["model"]
+            client = _get_ollama_client(hass)
+
+            focus_area_text = ", ".join(focus_areas) if focus_areas else "general home optimization"
+            prompt = (
+                "You are a smart home optimization assistant. "
+                "Analyze the provided timeline activity events and identify patterns, inefficiencies, and opportunities. "
+                "Provide practical suggestions a homeowner can act on. "
+                "Prioritize safety, energy savings, reliability, and convenience. "
+                f"Focus areas: {focus_area_text}. "
+                f"Return exactly {suggestion_count} suggestions. "
+                "Respond in JSON only with this schema: "
+                "{"
+                "\"summary\": string, "
+                "\"patterns\": [string], "
+                "\"suggestions\": ["
+                "{\"title\": string, \"priority\": \"high|medium|low\", \"reason\": string, \"action\": string, \"automation_idea\": string}"
+                "]"
+                "}."
+            )
+
+            context_payload = {
+                "sensor_entity_id": sensor_entity_id,
+                "sensor_state": timeline_state.state,
+                "total_events_today": timeline_attrs.get("total_events_today"),
+                "last_update": timeline_attrs.get("last_update"),
+                "events": selected_events,
+            }
+
+            response = await client.chat(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"{prompt}\n\nTimeline data:\n{json.dumps(context_payload, indent=2)}",
+                    }
+                ],
+                stream=False,
+            )
+
+            analysis_text = response.get("message", {}).get("content", "")
+
+            parsed_analysis: dict[str, Any]
+            try:
+                cleaned = analysis_text.strip()
+                if cleaned.startswith("```"):
+                    cleaned = cleaned.strip("`")
+                    if cleaned.startswith("json"):
+                        cleaned = cleaned[4:].strip()
+                parsed_analysis = json.loads(cleaned)
+            except Exception:
+                parsed_analysis = {
+                    "summary": "AI response was not valid JSON. Raw analysis returned.",
+                    "patterns": [],
+                    "suggestions": [],
+                    "raw_analysis": analysis_text,
+                }
+
+            return {
+                "sensor_entity_id": sensor_entity_id,
+                "model": model,
+                "max_events": max_events,
+                "focus_areas": focus_areas,
+                "events_analyzed": len(selected_events),
+                "analysis": parsed_analysis,
+            }
+        except Exception as err:
+            _LOGGER.error("Error evaluating timeline activity: %s", err, exc_info=True)
+            raise HomeAssistantError(
+                f"Error evaluating timeline activity: {err}"
+            ) from err
+
     hass.services.async_register(
         DOMAIN,
         "change_config",
@@ -537,6 +680,14 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
         "scan_home_automation_patterns",
         scan_home_automation_patterns,
         schema=SCAN_HOME_AUTOMATION_PATTERNS_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "evaluate_timeline_activity",
+        evaluate_timeline_activity,
+        schema=EVALUATE_TIMELINE_ACTIVITY_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
 

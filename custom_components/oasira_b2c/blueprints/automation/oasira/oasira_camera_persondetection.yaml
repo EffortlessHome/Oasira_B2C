@@ -111,7 +111,7 @@ action:
       entity_id: !input camera
       entity_name: "{{ camera_name }}"
       event_type: !input notification_title
-      media_path: "{{ snapshot_access_file_path }}""
+        media_path: "{{ snapshot_access_file_path }}"
 
   - choose: []
     default: !input additional_actions

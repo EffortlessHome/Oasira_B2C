@@ -227,6 +227,39 @@ create_timeline_event:
       selector:
         text:
 
+summarize_timeline_period:
+  name: Summarize Timeline Period
+  description: Evaluate timeline events in a period and report useful duration metrics
+  fields:
+    start_time:
+      description: Start of evaluation period (ISO datetime). If omitted, uses hours_back.
+      example: "2026-04-20T00:00:00+00:00"
+      selector:
+        text:
+
+    end_time:
+      description: End of evaluation period (ISO datetime). Defaults to now.
+      example: "2026-04-20T23:59:59+00:00"
+      selector:
+        text:
+
+    hours_back:
+      description: Hours to look back when start_time is not supplied
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 720
+          step: 1
+          mode: box
+
+    include_entities:
+      description: Optional list of entities to include in the summary
+      example: ["light.living_room", "switch.dishwasher", "person.john"]
+      selector:
+        text:
+          multiple: true
+
 # Oasira AI Conversation services
 change_config:
   name: Change config
@@ -348,6 +381,50 @@ scan_home_automation_patterns:
       default: "automations.yaml"
       selector:
         text:
+
+evaluate_timeline_activity:
+  name: Evaluate timeline activity
+  description: Analyze timeline sensor events and suggest optimizations for the homeowner
+  fields:
+    sensor_entity_id:
+      required: false
+      example: "sensor.oasira_timeline_activity"
+      description: "Timeline sensor entity to analyze"
+      default: "sensor.oasira_timeline_activity"
+      selector:
+        entity:
+          domain:
+            - sensor
+    max_events:
+      required: false
+      example: 20
+      description: "Maximum number of recent timeline events to evaluate"
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          mode: box
+    suggestion_count:
+      required: false
+      example: 5
+      description: "Number of optimization suggestions to request"
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          step: 1
+          mode: box
+    focus_areas:
+      required: false
+      example: ["safety", "energy", "convenience"]
+      description: "Optional topics to prioritize during optimization analysis"
+      default: []
+      selector:
+        text:
+          multiple: true
 
 # Create event service
 create_event:
