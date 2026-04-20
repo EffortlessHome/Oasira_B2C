@@ -32,23 +32,11 @@ blueprint:
           max: 100.0
           step: 1.0
           mode: slider
-    person_input:
-      name: Person
-      description: The person to notify
-      selector:
-        entity:
-          domain: sensor
+
     notification_message:
       name: Notification message
       description: The notification message to send
       default: "PERSON NAME MEDICATION NAME Not Taken Within Required Timeframe"
-
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification. (default
-        = /lovelace)
-      default: /lovelace
 
     additional_actions:
       name: Additional Actions
@@ -62,7 +50,7 @@ trigger:
     platform: time
 
 variables:
-  clickActionURL: !input data_clickaction_url
+
   numhours: !input numhours
 
   message: !input notification_message
@@ -78,16 +66,18 @@ condition:
       }}
 
 action:
-  - service: oasira_b2c.notify_person_service
+
+  - service: notify.oasira
     data:
-      target: !input person_input
       title: "Medication Not Taken Notification"
       message: "{{ messagewithparams }}"
-      data:
-        clickAction: !input data_clickaction_url
-        ttl: 0
-        priority: high
-        url: !input data_clickaction_url
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input switch
+      entity_name: !input switch
+      event_type: "{{ messagewithparams }}"
+
   - service: oasira_b2c.create_alert_service
     data:
       alert_type: "Medication Not Taken Notification"

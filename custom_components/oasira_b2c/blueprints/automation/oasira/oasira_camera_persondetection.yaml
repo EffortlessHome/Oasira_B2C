@@ -106,6 +106,13 @@ action:
         attachment:
           url: "{{ snapshot_access_file_path }}"
 
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input camera
+      entity_name: "{{ camera_name }}"
+      event_type: !input notification_title
+      media_path: "{{ snapshot_access_file_path }}""
+
   - choose: []
     default: !input additional_actions
 mode: parallel

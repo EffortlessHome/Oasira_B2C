@@ -25,24 +25,10 @@ blueprint:
           step: 1.0
           mode: slider
 
-    person_input:
-      name: Person
-      description: The person to notify
-      selector:
-        entity:
-          domain: sensor
-
     notification_message:
       name: Notification message
       description: "No Motion Detected Message"
       default: "No motion detected for configured time period while someone is home and not sleeping."
-
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification. (default
-        = /lovelace)
-      default: /lovelace
 
     additional_actions:
       name: Additional Actions
@@ -58,9 +44,6 @@ trigger:
   to: "off"
   for: !input no_motion_wait
 
-variables:
-  clickActionURL: !input data_clickaction_url
-
 conditions:
   - condition: state
     entity_id: binary_sensor.someone_home_sensor
@@ -69,16 +52,17 @@ conditions:
     entity_id: binary_sensor.sleeping_sensor
     state: "off"
 action:
-  - service: oasira_b2c.notify_person_service
+
+  - service: notify.oasira
     data:
-      target: !input person_input
       title: No Motion Detected
       message: !input notification_message
-      data:
-        clickAction: !input data_clickaction_url
-        ttl: 0
-        priority: high
-        url: !input data_clickaction_url
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input motion_entity
+      entity_name: !input motion_entity
+      event_type: !input notification_message
 
   - choose: []
     default: !input additional_actions

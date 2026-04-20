@@ -80,13 +80,6 @@ blueprint:
       description: The notification message to send
       default: "PERSON NAME Activity Today Did Not Meet Baseline"
 
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification. (default
-        = /lovelace)
-      default: /lovelace
-
     additional_actions:
       name: Additional Actions
       description: Add additional actions to execute (Optional)
@@ -99,7 +92,7 @@ trigger:
     platform: time
 
 variables:
-  clickActionURL: !input data_clickaction_url
+
   steps: !input stepssensor
   pace: !input pacesensor
   floors: !input floorsensor
@@ -121,16 +114,23 @@ conditions:
         below: !input daily_floors_baseline
 
 action:
-  - service: oasira_b2c.notify_person_service
+
+  - service: notify.oasira
     data:
-      target: !input person_input
       title: "Daily Activity Update"
       message: "{{ messagewithparams }}"
-      data:
-        clickAction: !input data_clickaction_url
-        ttl: 0
-        priority: high
-        url: !input data_clickaction_url
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input stepssensor
+      entity_name: !input stepssensor
+      event_type: "{{ messagewithparams }}"
+
+  - service: oasira_b2c.create_alert_service
+    data:
+      alert_type: "Daily Activity Update"
+      alert_description: "{{ messagewithparams }}"
+      status: Active
 
   - choose: []
     default: !input additional_actions

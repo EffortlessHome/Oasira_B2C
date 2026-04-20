@@ -38,7 +38,6 @@ blueprint:
         "{{ sensor_name }} detected YOUR VALUE HERE. Snapshot from {{ camera_name
         }} at {{ time }}."
 
-
     additional_actions:
       name: Additional Actions
       description: Add additional actions to execute (Optional)
@@ -64,7 +63,7 @@ variables:
   snapshot_access_file_path: "{{ snapshot_create_file_path | replace('/media','/media/local') }}"
   # Media source ID for AI task (convert path to media-source://)
   snapshot_media_source: "{{ snapshot_create_file_path | replace('/media','media-source://media_source/local') }}"
-  clickActionURL: !input data_clickaction_url
+
   additional_actions: !input additional_actions
   prompt: !input ai_prompt
 
@@ -104,6 +103,13 @@ action:
         video: "{{ snapshot_access_file_path }}"
         attachment:
           url: "{{ snapshot_access_file_path }}"
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input camera
+      entity_name: "{{ camera_name }}"
+      event_type: !input notification_title
+      media_path: "{{ snapshot_access_file_path }}""
 
   - choose: []
     default: !input additional_actions

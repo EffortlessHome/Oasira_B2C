@@ -58,5 +58,12 @@ action:
       alert_type: Temperature Sensor Activated
       alert_description: !input notification_message
       status: Active
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input tempsensor
+      entity_name: "{{ sensor_name }}"
+      event_type: !input notification_message
+
   - choose: []
     default: !input additional_actions

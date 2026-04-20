@@ -18,12 +18,6 @@ blueprint:
       description: "Water Leak Sensor Activated Message"
       default: "Water Sensor Activated. Check for water immediately."
 
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification. (default
-        = /lovelace)
-      default: /lovelace
     additional_actions:
       name: Additional Actions
       description: Add additional actions to execute (Optional)
@@ -43,14 +37,14 @@ action:
       title: Water Sensor Activated
       message: !input notification_message
       data:
-        clickAction: !input data_clickaction_url
         ttl: 0
         priority: high
-        url: !input data_clickaction_url
-  - service: Oasira.create_alert_service
+
+  - service: oasira_b2c.create_timeline_event
     data:
-      alert_type: Water Sensor Activated
-      alert_description: !input notification_message
-      status: Active
+      entity_id: !input watersensor
+      entity_name: "{{ sensor_name }}"
+      event_type: !input notification_message
+
   - choose: []
     default: !input additional_actions

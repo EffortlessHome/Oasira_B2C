@@ -25,23 +25,10 @@ blueprint:
           step: 1.0
           mode: slider
 
-    person_input:
-      name: Person
-      description: The person to notify
-      selector:
-        entity:
-          domain: sensor
     notification_message:
       name: Notification message
       description: The notification message to send
       default: Oven/Stove Turned On
-
-    data_clickaction_url:
-      name: URL to Navigate (Optional)
-      description:
-        The URL to navigate to when clicking on the notification. (default
-        = /lovelace)
-      default: /lovelace
 
     additional_actions:
       name: Additional Actions
@@ -57,7 +44,6 @@ triggers:
     minutes: "59"
 
 variables:
-  clickActionURL: !input data_clickaction_url
 
   previous_temp: >-
     {{ state_attr(input.oventempsensor, 'last_updated') | default(0) |
@@ -70,16 +56,17 @@ conditions:
       (current_temp - previous_temp) >= input.numdegrees }}
 
 action:
-  - service: oasira_b2c.notify_person_service
+
+  - service: notify.oasira
     data:
-      target: !input person_input
-      title: !input notification_message
+      title: Oven Started
       message: !input notification_message
-      data:
-        clickAction: !input data_clickaction_url
-        ttl: 0
-        priority: high
-        url: !input data_clickaction_url
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input oventempsensor
+      entity_name: "{{ sensor_name }}"
+      event_type: !input notification_message
 
   - choose: []
     default: !input additional_actions
