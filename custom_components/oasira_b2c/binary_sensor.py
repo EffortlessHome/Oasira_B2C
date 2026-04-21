@@ -17,6 +17,7 @@ from homeassistant.core import State
 
 from .alarm_common import async_cancelalarm, async_creatependingalarm
 from .const import ALARM_TYPE_MED_ALERT, ALARM_TYPE_MONITORING, DOMAIN, NAME
+from .facerecognition import PersonFaceRecognitionSensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ async def async_setup_entry(
     async_add_entities([DoorGroup()])
     async_add_entities([WindowGroup()])
     async_add_entities([SecurityMotionGroup()])
+    async_add_entities([PersonFaceRecognitionSensor(hass)])
     async_add_entities([SmartApplianceSensor("smartappliance1")])
     async_add_entities([SmartApplianceSensor("smartappliance2")])
     async_add_entities([SmartApplianceSensor("smartappliance3")])

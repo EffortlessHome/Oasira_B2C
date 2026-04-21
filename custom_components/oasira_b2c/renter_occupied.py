@@ -4,33 +4,28 @@ from functools import cached_property
 import logging
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.helpers.restore_state import RestoreEntity
-from .const import NAME, DOMAIN
+from .auto_area import AutoArea
+from .const import DOMAIN, NAME
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 
-class MedicationTrackingSwitch(SwitchEntity, RestoreEntity):
-    """Set up a medication tracking switch."""
+class RenterOccupiedSwitch(SwitchEntity, RestoreEntity):
+    """Set up a renter occupied switch."""
 
     _attr_should_poll = False
 
-    def __init__(self, name) -> None:
+    def __init__(self) -> None:
         """Initialize switch."""
         self._is_on: bool = False
-        self._attr_name = name
-        self.entity_id = "switch.medication_tracking"
 
     @cached_property
     def name(self) -> str | UndefinedType | None:
         """Return the name of the entity."""
-        return self._attr_name
-
-    @property
-    def unique_id(self) -> str:
-        """Return the unique ID of the switch."""
-        return "medication_tracking"
+        return "Renter Occupied"
 
     @property
     def device_info(self):
@@ -40,6 +35,11 @@ class MedicationTrackingSwitch(SwitchEntity, RestoreEntity):
             "name": NAME,
             "manufacturer": NAME,
         }
+
+    @property
+    def unique_id(self) -> str:
+        """Return the unique ID of the sensor."""
+        return "renter_occupied"
 
     @cached_property
     def device_class(self) -> SwitchDeviceClass | None:

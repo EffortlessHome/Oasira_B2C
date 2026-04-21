@@ -25,6 +25,7 @@ from homeassistant.helpers.device_registry import async_get as async_get_dev_reg
 
 from .const import DOMAIN, NAME
 from .notificationdevice import Oasiranotificationdevice
+from .oasiraperson import OasiraPerson
 from .timeline_sensor import TimelineSensor
 
 from .virtualpowersensor import (
@@ -59,6 +60,12 @@ async def async_setup_entry(
     async_add_entities([HighTemperatureTomorrowSensor()])
     async_add_entities([TimelineSensor()])
 
+    # Add OasiraPerson sensors for tracked users
+    persons = hass.data.get(DOMAIN, {}).get("persons", [])
+    for person in persons:
+        if isinstance(person, OasiraPerson):
+            async_add_entities([person])
+
     async_add_entities(
         [ConfigSensor("DaysHistoryToKeep", hass.data[DOMAIN]["DaysHistoryToKeep"])]
     )
@@ -75,39 +82,35 @@ async def async_setup_entry(
         [ConfigSensor("HighHumidity", hass.data[DOMAIN]["HighHumidityWarning"])]
     )
 
-    persons = hass.data.get(DOMAIN, {}).get("persons", [])
-    for person in persons:
-        async_add_entities([person])
-
     powerentities = []
 
-    entity_registry = er.async_get(hass)
-    all_entities = entity_registry.entities.values()
+    profiles = hass.data.get(DOMAIN, {}).get("virtual_power_profiles", [])
+    for profile in profiles:
+        name = profile.get("name") or profile.get("entity_id") or "virtual_device"
+        wattage = profile.get("wattage", 0)
+        always_on = bool(profile.get("always_on", False))
 
-    device_data = hass.states.get(DOMAIN + ".virtualpowerentities")
-
-    if device_data is not None:
-        for entry in device_data:
-            for entity in all_entities:
-                if entity.entity_id == entry["entity_id"]:
-                    _LOGGER.debug(
-                        "Adding virtual device: %s with wattage: %s",
-                        entry["powersensorname"],
-                        entry["wattage"],
-                    )
-                    virtual_sensor = VirtualPowerSensor(
-                        hass, entry["entity_id"], entry["wattage"]
-                    )
-                    powerentities.append(virtual_sensor)
-
-    device_data = hass.states.get(DOMAIN + ".virtualdevices")
-
-    if device_data is not None:
-        for entry in device_data:
-            name = entry["name"]
-            wattage = entry["wattage"]
-            _LOGGER.debug("Adding virtual device: %s with wattage: %s", name, wattage)
+        if always_on:
+            _LOGGER.debug(
+                "Adding always-on virtual device: %s with wattage: %s",
+                name,
+                wattage,
+            )
             powerentities.append(VirtualPowerSensorAlwaysOn(hass, name, wattage))
+            continue
+
+        entity_id = profile.get("entity_id")
+        if not entity_id:
+            _LOGGER.debug("Skipping virtual profile without entity_id: %s", profile)
+            continue
+
+        _LOGGER.debug(
+            "Adding linked virtual device: %s (%s) with wattage: %s",
+            name,
+            entity_id,
+            wattage,
+        )
+        powerentities.append(VirtualPowerSensor(hass, entity_id, wattage, name))
 
     async_add_entities(powerentities)
     async_add_entities([TotalEnergySensor(hass)])

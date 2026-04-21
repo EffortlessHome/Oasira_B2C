@@ -12,7 +12,6 @@ import os
 from os import path, walk
 from pathlib import Path
 import shutil
-import subprocess
 import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
@@ -106,6 +105,8 @@ from .ai_template import (
     async_unload_templates as async_unload_ai_templates,
 )
 from .timeline_service import async_setup_services as async_setup_timeline_services
+from .energy_advisor import async_setup_energy_advisor
+from .person_notifications import PersonNotificationManager, send_notification_to_person
 
 try:
     # Older versions (pre-2025)
@@ -133,6 +134,8 @@ FIREBASE_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 FCM_URL = "https://fcm.googleapis.com/v1/projects/oasira-oauth/messages:send"
 PUSH_TOKEN_STORAGE_KEY = "oasira_push_tokens"
 PUSH_TOKEN_STORAGE_VERSION = 1
+VIRTUAL_POWER_STORAGE_KEY = "oasira_virtual_power_profiles"
+VIRTUAL_POWER_STORAGE_VERSION = 1
 
 
 class HASSComponent:
@@ -479,6 +482,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     stored_tokens = await token_store.async_load() or []
     hass.data[DOMAIN]["notification_tokens"] = list(dict.fromkeys(stored_tokens))
 
+    virtual_power_store = storage.Store(
+        hass,
+        VIRTUAL_POWER_STORAGE_VERSION,
+        VIRTUAL_POWER_STORAGE_KEY,
+    )
+    virtual_power_profiles = await virtual_power_store.async_load() or []
+
+    person_notification_manager = PersonNotificationManager(hass)
+    await person_notification_manager.async_load()
+
     system_id = entry.data["system_id"]
     customer_id = entry.data["customer_id"]
     id_token = entry.data.get("id_token")
@@ -537,6 +550,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "config_entry": entry,
                 "token_store": hass.data[DOMAIN]["token_store"],
                 "notification_tokens": hass.data[DOMAIN]["notification_tokens"],
+                "virtual_power_store": virtual_power_store,
+                "virtual_power_profiles": virtual_power_profiles,
+                "person_notification_manager": person_notification_manager,
                 "fullname": parsed_data["fullname"],
                 "phonenumber": parsed_data["phonenumber"],
                 "emailaddress": parsed_data["emailaddress"],
@@ -621,6 +637,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "button",
             "conversation",
             "ai_task",
+            "tts",
         ],
     )
 
@@ -676,6 +693,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     register_services(hass)
     await async_setup_ai_services(hass, {})
     await async_setup_timeline_services(hass)
+    await async_setup_energy_advisor(hass)
     await async_setup_ai_templates(hass)
 
     # Removed deploy_latest_config(hass) from initialization. Now triggered by button entity.
@@ -838,19 +856,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             "button",
             "conversation",
             "ai_task",
+            "tts",
         ],
     )
 
     await async_unload_ai_templates(hass)
 
     # Unregister the notify service
-    hass.services.async_remove("Oasira", "notify")
+    if hass.services.has_service("notify", "Oasira"):
+        hass.services.async_remove("notify", "Oasira")
 
     # Remove backward-compatible service aliases if present
     if hass.services.has_service(DOMAIN, "create_alert_service"):
         hass.services.async_remove(DOMAIN, "create_alert_service")
-    if hass.services.has_service(LEGACY_DOMAIN, "create_alert_service"):
-        hass.services.async_remove(LEGACY_DOMAIN, "create_alert_service")
 
     webhook.async_unregister(hass, "oasira_push_token")
     webhook.async_unregister(hass, "oasira_remove_push_token")
@@ -909,7 +927,6 @@ def register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "create_alert", create_alert)
     # Backward compatibility for legacy automation calls.
     hass.services.async_register(DOMAIN, "create_alert_service", create_alert)
-    hass.services.async_register(LEGACY_DOMAIN, "create_alert_service", create_alert)
 
     hass.services.async_register(
         DOMAIN, "deploy_latest_config", handle_deploy_latest_config
@@ -927,6 +944,196 @@ def register_services(hass: HomeAssistant) -> None:
             {vol.Required("entity_id"): cv.entity_id, vol.Required("label"): cv.string}
         ),
     )
+
+    hass.services.async_register(
+        DOMAIN,
+        "add_person_notification_device",
+        add_person_notification_device,
+        schema=vol.Schema(
+            {
+                vol.Required("email"): cv.string,
+                vol.Required("device_token"): cv.string,
+                vol.Required("device_name"): cv.string,
+                vol.Required("platform"): vol.In(["ios", "android", "web"]),
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "remove_person_notification_device",
+        remove_person_notification_device,
+        schema=vol.Schema(
+            {
+                vol.Required("email"): cv.string,
+                vol.Required("device_name"): cv.string,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "send_person_notification",
+        send_person_notification,
+        schema=vol.Schema(
+            {
+                vol.Required("email"): cv.string,
+                vol.Required("title"): cv.string,
+                vol.Required("message"): cv.string,
+                vol.Optional("data"): dict,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "add_virtual_power_device",
+        add_virtual_power_device,
+        schema=vol.Schema(
+            {
+                vol.Optional("entity_id"): cv.entity_id,
+                vol.Optional("name"): cv.string,
+                vol.Required("wattage"): vol.Coerce(float),
+                vol.Optional("always_on", default=False): cv.boolean,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "remove_virtual_power_device",
+        remove_virtual_power_device,
+        schema=vol.Schema(
+            {
+                vol.Optional("entity_id"): cv.entity_id,
+                vol.Optional("name"): cv.string,
+            }
+        ),
+    )
+
+
+def _build_virtual_profile_key(entity_id: str | None, name: str | None, always_on: bool) -> str:
+    """Build a stable key for a virtual power profile."""
+    if not always_on and entity_id:
+        return entity_id
+
+    normalized = (name or "always_on_device").strip().lower().replace(" ", "_")
+    return f"always_on:{normalized}"
+
+
+async def _save_virtual_power_profiles(hass: HomeAssistant) -> None:
+    """Persist virtual power profiles to Home Assistant storage."""
+    domain_data = hass.data.get(DOMAIN, {})
+    store = domain_data.get("virtual_power_store")
+    profiles = domain_data.get("virtual_power_profiles", [])
+    if store is not None:
+        await store.async_save(profiles)
+
+
+async def _reload_oasira_entry(hass: HomeAssistant) -> None:
+    """Reload this integration entry so profile-based entities are rebuilt."""
+    entry = hass.data.get(DOMAIN, {}).get("config_entry")
+    if entry is None:
+        return
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def add_virtual_power_device(call: ServiceCall) -> None:
+    """Add or update a virtual power profile for total home usage estimation."""
+    hass = HASSComponent.get_hass()
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    profiles = list(domain_data.get("virtual_power_profiles", []))
+
+    entity_id = call.data.get("entity_id")
+    name = call.data.get("name")
+    always_on = bool(call.data.get("always_on", False))
+    wattage = float(call.data.get("wattage", 0.0))
+
+    if wattage < 0:
+        _LOGGER.error("wattage must be >= 0")
+        return
+
+    if not always_on and not entity_id:
+        _LOGGER.error("entity_id is required when always_on is false")
+        return
+
+    if always_on and not name:
+        _LOGGER.error("name is required when always_on is true")
+        return
+
+    profile_key = _build_virtual_profile_key(entity_id, name, always_on)
+    profile_name = name or entity_id
+
+    profile = {
+        "key": profile_key,
+        "entity_id": entity_id,
+        "name": profile_name,
+        "wattage": wattage,
+        "always_on": always_on,
+    }
+
+    updated = False
+    for idx, existing in enumerate(profiles):
+        if existing.get("key") == profile_key:
+            profiles[idx] = profile
+            updated = True
+            break
+
+    if not updated:
+        profiles.append(profile)
+
+    domain_data["virtual_power_profiles"] = profiles
+    await _save_virtual_power_profiles(hass)
+
+    _LOGGER.info(
+        "%s virtual power profile: %s (%s W)",
+        "Updated" if updated else "Added",
+        profile_name,
+        wattage,
+    )
+
+    await _reload_oasira_entry(hass)
+
+
+async def remove_virtual_power_device(call: ServiceCall) -> None:
+    """Remove a virtual power profile by entity_id or name."""
+    hass = HASSComponent.get_hass()
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    profiles = list(domain_data.get("virtual_power_profiles", []))
+
+    entity_id = call.data.get("entity_id")
+    name = call.data.get("name")
+
+    if not entity_id and not name:
+        _LOGGER.error("entity_id or name is required")
+        return
+
+    normalized_name = (name or "").strip().lower().replace(" ", "_")
+    before_count = len(profiles)
+    profiles = [
+        profile
+        for profile in profiles
+        if not (
+            (entity_id and profile.get("entity_id") == entity_id)
+            or (
+                name
+                and (
+                    str(profile.get("name", "")).strip().lower().replace(" ", "_")
+                    == normalized_name
+                )
+            )
+        )
+    ]
+
+    if len(profiles) == before_count:
+        _LOGGER.warning("No matching virtual power profile found to remove")
+        return
+
+    domain_data["virtual_power_profiles"] = profiles
+    await _save_virtual_power_profiles(hass)
+    _LOGGER.info("Removed virtual power profile")
+
+    await _reload_oasira_entry(hass)
 
 
 async def update_entity(call):
@@ -1093,29 +1300,31 @@ async def confirmpendingalarm(calldata) -> None:
 
 
 async def clean_motion_files(call: ServiceCall) -> None:
-    """Execute the shell command to delete old snapshots."""
+    """Delete snapshot files older than the specified number of days."""
     age = call.data.get("age", 30)
 
     if not isinstance(age, int) or age < 1:
         _LOGGER.warning("Invalid age value %s, using default 30 days", age)
         age = 30
 
-    command = f"find /media/snapshots/* -mtime +{age} -exec rm {{}} \\;"
+    snapshots_dir = "/media/snapshots"
 
-    # Use subprocess to execute the shell command
+    # Use -mindepth 1 so the directory itself is never deleted,
+    # and target the directory directly (not a glob) so it works even when empty.
+    command = f"find {snapshots_dir} -mindepth 1 -mtime +{age} -delete"
+
     try:
-        process = subprocess.run(
+        process = await asyncio.create_subprocess_shell(
             command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+        _, stderr = await process.communicate()
 
         if process.returncode == 0:
-            _LOGGER.info("Successfully deleted old snapshots older than %s days", age)
+            _LOGGER.info("Successfully deleted snapshots older than %s days", age)
         else:
-            _LOGGER.error("Error deleting snapshots: %s", process.stderr.decode())
+            _LOGGER.error("Error deleting snapshots: %s", stderr.decode().strip())
     except Exception as e:
         _LOGGER.error("Failed to clean motion files: %s", e)
 
@@ -1473,3 +1682,86 @@ async def handle_oasira_location_update(hass, webhook_id, request):
 
     _LOGGER.info("[Oasira] ✅ Location update successful for %s", entity_id)
     return web.json_response({"status": "success", "message": "Location updated"})
+
+
+async def add_person_notification_device(call: ServiceCall) -> None:
+    """Add a notification device to a person."""
+    hass = call.hass
+    email = call.data.get("email")
+    device_token = call.data.get("device_token")
+    device_name = call.data.get("device_name")
+    platform = call.data.get("platform")
+
+    if not email or not device_token or not device_name or not platform:
+        _LOGGER.error(
+            "Missing required parameters for add_person_notification_device"
+        )
+        return
+
+    manager = hass.data.get(DOMAIN, {}).get("person_notification_manager")
+    if not manager:
+        _LOGGER.error("PersonNotificationManager not initialized")
+        return
+
+    success = await manager.add_device_to_person(
+        email, device_token, device_name, platform
+    )
+
+    if success:
+        _LOGGER.info(
+            "Successfully added notification device '%s' for %s", device_name, email
+        )
+    else:
+        _LOGGER.error(
+            "Failed to add notification device '%s' for %s", device_name, email
+        )
+
+
+async def remove_person_notification_device(call: ServiceCall) -> None:
+    """Remove a notification device from a person."""
+    hass = call.hass
+    email = call.data.get("email")
+    device_name = call.data.get("device_name")
+
+    if not email or not device_name:
+        _LOGGER.error(
+            "Missing required parameters for remove_person_notification_device"
+        )
+        return
+
+    manager = hass.data.get(DOMAIN, {}).get("person_notification_manager")
+    if not manager:
+        _LOGGER.error("PersonNotificationManager not initialized")
+        return
+
+    success = await manager.remove_device_from_person(email, device_name)
+
+    if success:
+        _LOGGER.info(
+            "Successfully removed notification device '%s' for %s", device_name, email
+        )
+    else:
+        _LOGGER.error(
+            "Failed to remove notification device '%s' for %s", device_name, email
+        )
+
+
+async def send_person_notification(call: ServiceCall) -> None:
+    """Send a notification to a person on all their registered devices."""
+    hass = call.hass
+    email = call.data.get("email")
+    title = call.data.get("title")
+    message = call.data.get("message")
+    data = call.data.get("data", {})
+
+    if not email or not title or not message:
+        _LOGGER.error("Missing required parameters for send_person_notification")
+        return
+
+    success = await send_notification_to_person(hass, email, title, message, data)
+
+    if success:
+        _LOGGER.info("Successfully sent notification to %s", email)
+    else:
+        _LOGGER.error("Failed to send notification to %s", email)
+

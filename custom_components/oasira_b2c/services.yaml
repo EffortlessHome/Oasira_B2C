@@ -1,6 +1,5 @@
 # Service to clean motion files older than specified age
 clean_motion_files:
-  target: {}
   fields:
     age:
       description: The age of the files to remove in days. Default is 30 days.
@@ -32,6 +31,93 @@ add_label_to_entity:
       required: true
       selector:
         label:
+
+# Add a notification device to a person
+add_person_notification_device:
+  name: Add Person Notification Device
+  description: Register a notification device for a person to receive push notifications
+  fields:
+    email:
+      description: Email address of the person
+      example: "user@example.com"
+      required: true
+      selector:
+        text:
+
+    device_token:
+      description: FCM or Firebase device token
+      example: "d6nL8x9wK2mP4qR7sT1uV3..."
+      required: true
+      selector:
+        text:
+
+    device_name:
+      description: Friendly name for the device
+      example: "iPhone 13"
+      required: true
+      selector:
+        text:
+
+    platform:
+      description: Device platform
+      required: true
+      selector:
+        select:
+          options:
+            - "ios"
+            - "android"
+            - "web"
+
+# Remove a notification device from a person
+remove_person_notification_device:
+  name: Remove Person Notification Device
+  description: Unregister a notification device for a person
+  fields:
+    email:
+      description: Email address of the person
+      example: "user@example.com"
+      required: true
+      selector:
+        text:
+
+    device_name:
+      description: Friendly name of the device to remove
+      example: "iPhone 13"
+      required: true
+      selector:
+        text:
+
+# Send a notification to a person on all their devices
+send_person_notification:
+  name: Send Person Notification
+  description: Send a push notification to a person on all their registered devices
+  fields:
+    email:
+      description: Email address of the person to notify
+      example: "user@example.com"
+      required: true
+      selector:
+        text:
+
+    title:
+      description: Notification title
+      example: "Front door alert"
+      required: true
+      selector:
+        text:
+
+    message:
+      description: Notification message
+      example: "Motion detected at front door"
+      required: true
+      selector:
+        text:
+
+    data:
+      description: Additional data to include in the notification
+      example: {"action": "open_camera", "camera_id": "front_door"}
+      selector:
+        object:
 
 # Create an alert record
 create_alert:
@@ -87,6 +173,55 @@ update_entity:
       required: true
       selector:
         area:
+
+add_virtual_power_device:
+  name: Add Virtual Power Device
+  description: Add or update a virtual power profile used for total home consumption estimation
+  fields:
+    entity_id:
+      description: Entity to monitor. Required unless always_on is true.
+      example: "switch.washing_machine"
+      selector:
+        entity:
+
+    name:
+      description: Friendly name for this profile. Required when always_on is true.
+      example: "Router"
+      selector:
+        text:
+
+    wattage:
+      description: Estimated power draw in watts
+      required: true
+      example: 120
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 1
+          unit_of_measurement: W
+
+    always_on:
+      description: Set true for fixed devices that are always consuming power
+      default: false
+      selector:
+        boolean:
+
+remove_virtual_power_device:
+  name: Remove Virtual Power Device
+  description: Remove a virtual power profile by entity_id or name
+  fields:
+    entity_id:
+      description: Entity id of the virtual power profile to remove
+      example: "switch.washing_machine"
+      selector:
+        entity:
+
+    name:
+      description: Profile name to remove (useful for always_on devices)
+      example: "Router"
+      selector:
+        text:
 
 # Deploy latest Oasira config
 deploy_latest_config:
