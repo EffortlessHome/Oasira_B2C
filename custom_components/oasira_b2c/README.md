@@ -123,5 +123,5 @@ Python dependencies are declared in manifest.json and installed automatically by
 
 ## Support
 
-- Issues: https://github.com/Oasira/Oasira/issues
+- Issues: https://github.com/EffortlessHome/Oasira/issues
 - Website: https://www.oasira.ai/

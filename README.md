@@ -65,5 +65,5 @@ Python dependencies are declared in custom_components/oasira_b2c/manifest.json a
 ## Support
 
 - Documentation: https://www.oasira.ai/
-- Issues: https://github.com/Oasira/Oasira/issues
+- Issues: https://github.com/EffortlessHome/Oasira_B2C/issues
 
