@@ -19,7 +19,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-TIMELINE_MEDIA_DIR = "media/timeline"
+TIMELINE_MEDIA_DIR = "www/snapshots"
 TIMELINE_EVENTS_FILE = "timeline_events.json"
 MAX_EVENTS_PER_DAY = 1000
 SIGNAL_TIMELINE_UPDATED = f"{DOMAIN}_timeline_updated"
@@ -106,6 +106,7 @@ class TimelineManager:
         self.hass = hass
         self._store = Store(hass, version=1, key=DOMAIN)
         self._events: List[TimelineEvent] = []
+        # Save to /config/www/snapshots/<camera_name>/, accessible as /local/snapshots/<camera_name>/
         self._media_dir = Path(hass.config.path(TIMELINE_MEDIA_DIR))
         self._initialized = False
 
