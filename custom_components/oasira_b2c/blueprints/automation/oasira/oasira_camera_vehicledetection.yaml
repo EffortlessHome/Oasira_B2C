@@ -61,6 +61,7 @@ variables:
   snapshot_access_file_path: "{{ snapshot_create_file_path | replace('/media','/media/local') }}"
   # Media source ID for AI task (convert path to media-source://)
   snapshot_media_source: "{{ snapshot_create_file_path | replace('/media','media-source://media_source/local') }}"
+  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path }}]"
 
   additional_actions: !input additional_actions
 
@@ -88,6 +89,13 @@ action:
   - condition: template
     value_template: "{{ 'Yes' in responsevar.data}}"
 
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input camera
+      entity_name: "{{ camera_name }}"
+      event_type: "{{ timelineentry }}"
+
   - condition: state
     entity_id: binary_sensor.motion_notification_sensor
     state: "on"
@@ -100,14 +108,7 @@ action:
         video: "{{ snapshot_access_file_path }}"
         attachment:
           url: "{{ snapshot_access_file_path }}"
-
-  - service: oasira_b2c.create_timeline_event
-    data:
-      entity_id: !input camera
-      entity_name: "{{ camera_name }}"
-      event_type: !input notification_title
-      media_path: "{{ snapshot_access_file_path }}"
-
+          
   - choose: []
     default: !input additional_actions
 mode: parallel

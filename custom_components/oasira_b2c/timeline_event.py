@@ -26,34 +26,20 @@ SIGNAL_TIMELINE_UPDATED = f"{DOMAIN}_timeline_updated"
 
 
 @dataclass
+
 class TimelineEvent:
-    """Represents a timeline event with snapshot/video."""
-
-    event_id: str
-    timestamp: datetime
-    event_type: str  # "person_detected", "motion", "vehicle", etc.
-    camera_entity_id: str
-    camera_name: str
-    area_id: Optional[str] = None
-    area_name: Optional[str] = None
-    snapshot_path: Optional[str] = None
-    video_clip_path: Optional[str] = None
-    video_duration: Optional[int] = None  # seconds
-    thumbnail_path: Optional[str] = None
-    description: Optional[str] = None
-    confidence: Optional[float] = None
-    labels: List[str] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)
-    is_favorite: bool = False
-    is_reviewed: bool = False
-
-    @property
-    def media_path(self) -> Optional[str]:
-        """Return the primary media path for the event."""
-        return self.snapshot_path or self.video_clip_path
+    """Represents a simple timeline event."""
+    def __init__(self, event_id: str, timestamp: datetime, event_type: str, camera_entity_id: str, camera_name: str, area_id: str = None, area_name: str = None, description: str = None):
+        self.event_id = event_id
+        self.timestamp = timestamp
+        self.event_type = event_type
+        self.camera_entity_id = camera_entity_id
+        self.camera_name = camera_name
+        self.area_id = area_id
+        self.area_name = area_name
+        self.description = description
 
     def to_dict(self) -> dict:
-        """Convert to dictionary for storage."""
         return {
             "event_id": self.event_id,
             "timestamp": self.timestamp.isoformat(),
@@ -62,21 +48,11 @@ class TimelineEvent:
             "camera_name": self.camera_name,
             "area_id": self.area_id,
             "area_name": self.area_name,
-            "snapshot_path": self.snapshot_path,
-            "video_clip_path": self.video_clip_path,
-            "video_duration": self.video_duration,
-            "thumbnail_path": self.thumbnail_path,
             "description": self.description,
-            "confidence": self.confidence,
-            "labels": self.labels,
-            "metadata": self.metadata,
-            "is_favorite": self.is_favorite,
-            "is_reviewed": self.is_reviewed,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> TimelineEvent:
-        """Create from dictionary."""
+    def from_dict(cls, data: dict) -> "TimelineEvent":
         return cls(
             event_id=data["event_id"],
             timestamp=datetime.fromisoformat(data["timestamp"]),
@@ -85,16 +61,7 @@ class TimelineEvent:
             camera_name=data["camera_name"],
             area_id=data.get("area_id"),
             area_name=data.get("area_name"),
-            snapshot_path=data.get("snapshot_path"),
-            video_clip_path=data.get("video_clip_path"),
-            video_duration=data.get("video_duration"),
-            thumbnail_path=data.get("thumbnail_path"),
             description=data.get("description"),
-            confidence=data.get("confidence"),
-            labels=data.get("labels", []),
-            metadata=data.get("metadata", {}),
-            is_favorite=data.get("is_favorite", False),
-            is_reviewed=data.get("is_reviewed", False),
         )
 
 
@@ -152,136 +119,11 @@ class TimelineManager:
         """Notify listeners that timeline data changed."""
         async_dispatcher_send(self.hass, SIGNAL_TIMELINE_UPDATED)
 
-    def get_camera_media_dir(self, camera_name: str) -> Path:
-        """Get the media directory for a camera."""
-        try:
-            camera_dir = self._media_dir / camera_name.replace(" ", "_")
-            camera_dir.mkdir(parents=True, exist_ok=True)
-            _LOGGER.debug("Created/verified camera media directory: %s", camera_dir)
-            return camera_dir
-        except Exception as e:
-            _LOGGER.error("Failed to create camera media directory for %s: %s", camera_name, e)
-            raise
 
-    async def create_person_detection_event(
-        self,
-        camera_entity_id: str,
-        camera_name: str,
-        snapshot_data: Optional[bytes] = None,
-        video_clip_data: Optional[bytes] = None,
-        video_duration: int = 5,
-        area_id: Optional[str] = None,
-        area_name: Optional[str] = None,
-        confidence: Optional[float] = None,
-        labels: Optional[List[str]] = None,
-        description: Optional[str] = None,
-        metadata: Optional[dict] = None,
-    ) -> TimelineEvent:
-        """Create a timeline event for person detection."""
-        event_id = str(uuid.uuid4())[:8]
-        timestamp = dt_util.utcnow()
 
-        # Save snapshot if provided
-        snapshot_path = None
-        thumbnail_path = None
-        if snapshot_data:
-            try:
-                camera_dir = self.get_camera_media_dir(camera_name)
-                snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_snapshot.jpg"
-                snapshot_path = str(camera_dir / snapshot_filename)
-                with open(snapshot_path, "wb") as f:
-                    f.write(snapshot_data)
-                thumbnail_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_thumb.jpg"
-                thumbnail_path = str(camera_dir / thumbnail_filename)
-            except Exception as e:
-                _LOGGER.error("Failed to save person detection snapshot: %s", e)
-                raise
 
-        # Save video clip if provided
-        video_clip_path = None
-        if video_clip_data:
-            try:
-                camera_dir = self.get_camera_media_dir(camera_name)
-                video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_clip.mp4"
-                video_clip_path = str(camera_dir / video_filename)
-                with open(video_clip_path, "wb") as f:
-                    f.write(video_clip_data)
-            except Exception as e:
-                _LOGGER.error("Failed to save person detection video: %s", e)
-                raise
 
-        event = TimelineEvent(
-            event_id=event_id,
-            timestamp=timestamp,
-            event_type="person_detected",
-            camera_entity_id=camera_entity_id,
-            camera_name=camera_name,
-            area_id=area_id,
-            area_name=area_name,
-            snapshot_path=snapshot_path,
-            video_clip_path=video_clip_path,
-            video_duration=video_duration if video_clip_data else None,
-            thumbnail_path=thumbnail_path,
-            description=description,
-            confidence=confidence,
-            labels=labels or [],
-            metadata=metadata or {},
-        )
 
-        self._events.append(event)
-        await self._save_events()
-        self._notify_timeline_updated()
-
-        _LOGGER.info(
-            "Created timeline event %s for camera %s: person detected",
-            event_id, camera_name
-        )
-        return event
-
-    async def create_motion_event(
-        self,
-        camera_entity_id: str,
-        camera_name: str,
-        video_clip_data: Optional[bytes] = None,
-        video_duration: int = 5,
-        area_id: Optional[str] = None,
-        area_name: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> TimelineEvent:
-        """Create a timeline event for motion detection."""
-        event_id = str(uuid.uuid4())[:8]
-        timestamp = dt_util.utcnow()
-
-        video_clip_path = None
-        if video_clip_data:
-            try:
-                camera_dir = self.get_camera_media_dir(camera_name)
-                video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_motion.mp4"
-                video_clip_path = str(camera_dir / video_filename)
-                with open(video_clip_path, "wb") as f:
-                    f.write(video_clip_data)
-            except Exception as e:
-                _LOGGER.error("Failed to save motion video: %s", e)
-                raise
-
-        event = TimelineEvent(
-            event_id=event_id,
-            timestamp=timestamp,
-            event_type="motion",
-            camera_entity_id=camera_entity_id,
-            camera_name=camera_name,
-            area_id=area_id,
-            area_name=area_name,
-            video_clip_path=video_clip_path,
-            video_duration=video_duration if video_clip_data else None,
-            description=description,
-        )
-
-        self._events.append(event)
-        await self._save_events()
-        self._notify_timeline_updated()
-
-        return event
 
     def get_timeline_for_camera(
         self,
@@ -357,56 +199,13 @@ class TimelineManager:
         entity_id: str,
         entity_name: str,
         event_type: str,
-        snapshot_data: Optional[bytes] = None,
-        video_clip_data: Optional[bytes] = None,
-        video_duration: int = 5,
-        area_id: Optional[str] = None,
-        area_name: Optional[str] = None,
-        description: Optional[str] = None,
-        confidence: Optional[float] = None,
-        labels: Optional[List[str]] = None,
-        metadata: Optional[dict] = None,
+        area_id: str = None,
+        area_name: str = None,
+        description: str = None,
     ) -> TimelineEvent:
-        """Create a generic timeline event for any sensor or device."""
+        """Create a simple timeline event for any sensor or device."""
         event_id = str(uuid.uuid4())[:8]
         timestamp = dt_util.utcnow()
-
-        # Save snapshot if provided
-        snapshot_path = None
-        thumbnail_path = None
-        if snapshot_data:
-            try:
-                _LOGGER.debug("Saving snapshot for entity %s", entity_name)
-                camera_dir = self.get_camera_media_dir(entity_name)
-                snapshot_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_snapshot.jpg"
-                snapshot_path = str(camera_dir / snapshot_filename)
-                
-                with open(snapshot_path, "wb") as f:
-                    f.write(snapshot_data)
-                _LOGGER.debug("Saved snapshot to %s (%d bytes)", snapshot_path, len(snapshot_data))
-                
-                thumbnail_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_thumb.jpg"
-                thumbnail_path = str(camera_dir / thumbnail_filename)
-            except Exception as e:
-                _LOGGER.error("Failed to save snapshot: %s", e)
-                raise
-
-        # Save video clip if provided
-        video_clip_path = None
-        if video_clip_data:
-            try:
-                _LOGGER.debug("Saving video clip for entity %s", entity_name)
-                camera_dir = self.get_camera_media_dir(entity_name)
-                video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_{event_id}_clip.mp4"
-                video_clip_path = str(camera_dir / video_filename)
-                
-                with open(video_clip_path, "wb") as f:
-                    f.write(video_clip_data)
-                _LOGGER.debug("Saved video clip to %s (%d bytes)", video_clip_path, len(video_clip_data))
-            except Exception as e:
-                _LOGGER.error("Failed to save video clip: %s", e)
-                raise
-
         event = TimelineEvent(
             event_id=event_id,
             timestamp=timestamp,
@@ -415,20 +214,11 @@ class TimelineManager:
             camera_name=entity_name,
             area_id=area_id,
             area_name=area_name,
-            snapshot_path=snapshot_path,
-            video_clip_path=video_clip_path,
-            video_duration=video_duration if video_clip_data else None,
-            thumbnail_path=thumbnail_path,
             description=description,
-            confidence=confidence,
-            labels=labels or [],
-            metadata=metadata or {},
         )
-
         self._events.append(event)
         await self._save_events()
         self._notify_timeline_updated()
-
         _LOGGER.info(
             "Created timeline event %s for entity %s: %s",
             event_id, entity_name, event_type
@@ -436,19 +226,9 @@ class TimelineManager:
         return event
 
     async def delete_event(self, event_id: str) -> bool:
-        """Delete a timeline event and its media files."""
+        """Delete a timeline event."""
         for i, event in enumerate(self._events):
             if event.event_id == event_id:
-                # Delete media files
-                for path_attr in ["snapshot_path", "video_clip_path", "thumbnail_path"]:
-                    path = getattr(event, path_attr)
-                    if path and os.path.exists(path):
-                        try:
-                            os.remove(path)
-                        except Exception as e:
-                            _LOGGER.warning("Failed to delete media file: %s", e)
-
-                # Remove from list
                 self._events.pop(i)
                 await self._save_events()
                 self._notify_timeline_updated()

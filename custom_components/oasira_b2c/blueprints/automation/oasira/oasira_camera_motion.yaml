@@ -64,25 +64,30 @@ variables:
   notification_title: !input notification_title
   notification_message: !input notification_message
 
-  snapshot_create_file_path: /media/snapshots/{{ camera_name }}/{{ date }} {{ time }}.jpg
-  snapshot_access_file_path: /config/www/effortlesshome/{{ camera_name }}.latest.jpg
+  snapshot_access_file_path: /config/www/oasira/{{ camera_name }}/{{ date }} {{ time }}.jpg
   snapshot_access_file_path_local:
     "{{ snapshot_access_file_path | replace('/config/www','/local')
     }}"
 
+  clip_access_file_path: /config/www/oasira/{{ camera_name }}/{{ date }} {{ time }}.mp4
+
+  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}][{{ clip_access_>
+
   additional_actions: !input additional_actions
 
 action:
-  - service: camera.snapshot
-    entity_id: !input camera
-    data:
-      filename: "{{ snapshot_create_file_path }}"
 
   - service: camera.snapshot
     entity_id: !input camera
     data:
       filename: "{{ snapshot_access_file_path }}"
 
+  - service: camera.record
+    entity_id: !input camera
+    data:
+      filename: "{{ clip_access_file_path }}"
+      duration: 5
+      
   - condition: state
     entity_id: switch.motion_notifications
     state: "on"
@@ -98,8 +103,7 @@ action:
     data:
       entity_id: !input camera
       entity_name: "{{ camera_name }}"
-      event_type: !input notification_title
-      media_path: "{{ snapshot_access_file_path }}"
+      event_type: "{{ timelineentry }}"
 
   - choose: []
     default: !input additional_actions
