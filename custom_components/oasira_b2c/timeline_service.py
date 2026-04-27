@@ -172,16 +172,6 @@ async def _record_camera_clip(
     return video_data
 
 
-RECORD_VIDEO_CLIP_SCHEMA = vol.Schema({
-    vol.Optional("camera_entity_id"): cv.string,
-    vol.Optional("entity_id"): vol.Any(cv.string, [cv.string]),
-    vol.Optional("duration", default=5): cv.positive_int,
-    vol.Optional("save_to_timeline", default=True): cv.boolean,
-    vol.Optional("event_type", default="motion"): cv.string,
-    vol.Optional("description"): cv.string,
-    vol.Optional("area_id"): cv.string,
-    vol.Optional("area_name"): cv.string,
-})
 
 CREATE_TIMELINE_EVENT_SCHEMA = vol.Schema({
     vol.Required("entity_id"): cv.string,
@@ -286,54 +276,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Failed to record video clip: %s", e)
             return {"success": False, "error": str(e)}
 
-    async def create_timeline_event(call: ServiceCall) -> ServiceResponse:
-        """Create a generic timeline event for any sensor or device."""
-        try:
-            _LOGGER.debug("create_timeline_event called with data: %s", call.data)
-            
-            entity_id = call.data["entity_id"]
-            _LOGGER.debug("entity_id: %s", entity_id)
-
-            entity_state = hass.states.get(entity_id)
-            entity_name = call.data.get("entity_name") or (
-                entity_state.name if entity_state else entity_id
-            )
-            event_type = call.data["event_type"]
-            media_path = call.data.get("media_path")
-            area_name = call.data.get("area_name")
-            description = call.data.get("description")
-            confidence = call.data.get("confidence")
-            metadata = _build_entity_state_metadata(entity_state)
-            snapshot_data = None
-            video_data = None
-
-            if media_path:
-                _LOGGER.debug("Processing media_path: %s", media_path)
-
-                full_media_path = _resolve_media_path(hass, media_path)
-                
-                _LOGGER.debug("Resolved media_path to: %s", full_media_path)
-
-                media_kind = _infer_media_kind(full_media_path)
-                _LOGGER.debug("Inferred media kind: %s", media_kind)
-                
-                if media_kind is None:
-                    error_msg = f"media_path must point to an image or video file: {full_media_path}"
-                    _LOGGER.error(error_msg)
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                    }
-
-                try:
-                    _LOGGER.debug("Reading media file: %s", full_media_path)
-                    with open(full_media_path, "rb") as file_handle:
-                        media_data = file_handle.read()
-                    _LOGGER.debug("Read %d bytes from media file", len(media_data))
-                except OSError as error:
-                    error_msg = f"failed to read media_path {full_media_path}: {error}"
-                    _LOGGER.error(error_msg)
-                    return {
                         "success": False,
                         "error": error_msg,
                     }
@@ -363,8 +305,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "success": True,
                 "event_id": event.event_id,
                 "timestamp": event.timestamp.isoformat(),
-                "has_snapshot": event.snapshot_path is not None,
-                "has_video": event.video_clip_path is not None,
             }
 
         except Exception as e:
@@ -554,7 +494,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             return {"success": False, "error": str(error)}
 
     # Register services
-    hass.services.async_register(DOMAIN, "record_video_clip", record_video_clip, RECORD_VIDEO_CLIP_SCHEMA)
     hass.services.async_register(
         DOMAIN,
         "create_timeline_event",

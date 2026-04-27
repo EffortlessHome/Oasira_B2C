@@ -227,47 +227,6 @@ remove_virtual_power_device:
 deploy_latest_config:
   target: {}
 
-record_video_clip:
-  name: Record Video Clip
-  description: Record a short video clip from a camera and save to timeline
-  target:
-    entity:
-      domain:
-        - camera
-  fields:
-    camera_entity_id:
-      description: The camera entity to record from
-      example: "camera.front_door"
-      selector:
-        entity:
-          domain:
-            - camera
-
-    duration:
-      description: Length of video clip in seconds
-      default: 5
-      selector:
-        number:
-          min: 1
-          max: 60
-          step: 1
-
-    save_to_timeline:
-      description: Save the clip to timeline
-      default: true
-      selector:
-        boolean:
-
-    description:
-      description: Description for the event
-      example: "Motion detected at front door"
-      selector:
-        text:
-
-    area_id:
-      description: Area ID for the event
-      selector:
-        area:
 
 create_timeline_event:
   name: Create Timeline Event

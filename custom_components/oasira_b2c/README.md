@@ -84,7 +84,6 @@ Operational services include:
 
 Timeline services include:
 
-- record_video_clip
 - create_timeline_event
 - summarize_timeline_period
 

@@ -106,12 +106,6 @@ class TimelineSensor(SensorEntity, RestoreEntity):
                     "area_id": event.area_id,
                     "area_name": event.area_name,
                     "description": event.description,
-                    "labels": event.labels,
-                    "metadata": event.metadata,
-                    "confidence": event.confidence,
-                    "is_favorite": event.is_favorite,
-                    "is_reviewed": event.is_reviewed,
-                    "media_path": event.media_path,
                 })
 
             self._attributes = {
@@ -122,9 +116,6 @@ class TimelineSensor(SensorEntity, RestoreEntity):
                 "last_area_id": latest.area_id,
                 "last_area_name": latest.area_name,
                 "last_description": latest.description,
-                "last_labels": latest.labels,
-                "last_metadata": latest.metadata,
-                "media_path": latest.media_path,
                 "recent_events": events_data,
                 "total_events_today": len([e for e in recent if e.timestamp.date() == dt_util.utcnow().date()]),
                 "last_update": dt_util.utcnow().isoformat(),
