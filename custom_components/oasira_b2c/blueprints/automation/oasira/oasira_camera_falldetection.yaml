@@ -64,7 +64,7 @@ variables:
   # Media source ID for AI task (convert path to media-source://)
   snapshot_media_source: "{{ snapshot_create_file_path | replace('/media','media-source://media_source/local') }}"
 
-  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}][{{ clip_access_>
+  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}]"
 
   additional_actions: !input additional_actions
 

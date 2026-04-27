@@ -66,12 +66,11 @@ variables:
 
   snapshot_access_file_path: /config/www/oasira/{{ camera_name }}/{{ date }} {{ time }}.jpg
   snapshot_access_file_path_local:
-    "{{ snapshot_access_file_path | replace('/config/www','/local')
-    }}"
+    "{{ snapshot_access_file_path | replace('/config/www','/local') }}"
 
   clip_access_file_path: /config/www/oasira/{{ camera_name }}/{{ date }} {{ time }}.mp4
 
-  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}][{{ clip_access_>
+  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}][{{ clip_access_file_path }}]"
 
   additional_actions: !input additional_actions
 
@@ -87,7 +86,13 @@ action:
     data:
       filename: "{{ clip_access_file_path }}"
       duration: 5
-      
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input camera
+      entity_name: "{{ camera_name }}"
+      event_type: "{{ timelineentry }}"
+
   - condition: state
     entity_id: switch.motion_notifications
     state: "on"
@@ -98,12 +103,6 @@ action:
       message: !input notification_message
       data:
         image: "{{ snapshot_access_file_path_local }}"
-
-  - service: oasira_b2c.create_timeline_event
-    data:
-      entity_id: !input camera
-      entity_name: "{{ camera_name }}"
-      event_type: "{{ timelineentry }}"
 
   - choose: []
     default: !input additional_actions

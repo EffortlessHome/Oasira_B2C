@@ -353,12 +353,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 entity_id=entity_id,
                 entity_name=entity_name,
                 event_type=event_type,
-                snapshot_data=snapshot_data,
-                video_clip_data=video_data,
                 area_name=area_name,
                 description=description,
-                confidence=confidence,
-                metadata=metadata,
             )
 
             _LOGGER.info("Successfully created timeline event: %s", event.event_id)
