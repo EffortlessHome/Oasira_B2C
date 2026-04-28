@@ -224,6 +224,46 @@ def _hours(seconds: float) -> float:
     return round(seconds / 3600, 2)
 
 async def async_setup_services(hass: HomeAssistant) -> None:
+
+        async def create_timeline_event(call: ServiceCall) -> ServiceResponse:
+            """Create a timeline event for any entity or device."""
+            entity_id = call.data.get("entity_id")
+            entity_name = call.data.get("entity_name")
+            event_type = call.data.get("event_type")
+            area_name = call.data.get("area_name")
+            area_id = call.data.get("area_id")
+            description = call.data.get("description")
+            media_path = call.data.get("media_path")
+            confidence = call.data.get("confidence")
+            try:
+                manager = await get_timeline_manager(hass)
+                event = await manager.create_event(
+                    entity_id=entity_id,
+                    entity_name=entity_name,
+                    event_type=event_type,
+                    area_id=area_id,
+                    area_name=area_name,
+                    description=description,
+                )
+                response = {
+                    "success": True,
+                    "event_id": event.event_id,
+                    "timestamp": event.timestamp.isoformat(),
+                    "event_type": event.event_type,
+                    "entity_id": event.camera_entity_id,
+                    "entity_name": event.camera_name,
+                    "area_id": event.area_id,
+                    "area_name": event.area_name,
+                    "description": event.description,
+                }
+                if media_path is not None:
+                    response["media_path"] = media_path
+                if confidence is not None:
+                    response["confidence"] = confidence
+                return response
+            except Exception as e:
+                _LOGGER.error("Failed to create timeline event: %s", e, exc_info=True)
+                return {"success": False, "error": str(e)}
     """Set up timeline services."""
 
     async def record_video_clip(call: ServiceCall) -> ServiceResponse:
