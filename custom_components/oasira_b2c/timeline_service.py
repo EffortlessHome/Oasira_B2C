@@ -276,9 +276,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Failed to record video clip: %s", e)
             return {"success": False, "error": str(e)}
 
-                        "success": False,
-                        "error": error_msg,
-                    }
 
                 if media_kind == "image":
                     snapshot_data = media_data
