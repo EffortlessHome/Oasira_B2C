@@ -277,39 +277,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             return {"success": False, "error": str(e)}
 
 
-                if media_kind == "image":
-                    snapshot_data = media_data
-                else:
-                    video_data = media_data
-
-            _LOGGER.debug("Getting timeline manager...")
-            manager = await get_timeline_manager(hass)
-            
-            _LOGGER.debug("Creating event: entity_id=%s, entity_name=%s, event_type=%s, snapshot_data=%s, video_data=%s",
-                         entity_id, entity_name, event_type, snapshot_data is not None, video_data is not None)
-
-            event = await manager.create_event(
-                entity_id=entity_id,
-                entity_name=entity_name,
-                event_type=event_type,
-                area_name=area_name,
-                description=description,
-            )
-
-            _LOGGER.info("Successfully created timeline event: %s", event.event_id)
-            
-            return {
-                "success": True,
-                "event_id": event.event_id,
-                "timestamp": event.timestamp.isoformat(),
-            }
-
-        except Exception as e:
-            import traceback
-            error_msg = f"Failed to create event: {e}"
-            _LOGGER.error(error_msg)
-            _LOGGER.error("Traceback: %s", traceback.format_exc())
-            return {"success": False, "error": error_msg}
 
     async def summarize_timeline_period(call: ServiceCall) -> ServiceResponse:
         """Summarize entity activity over a period and compute duration-based insights."""
