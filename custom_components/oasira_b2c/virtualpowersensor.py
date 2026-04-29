@@ -349,8 +349,7 @@ class TotalEnergySensor(SensorEntity, RestoreEntity):
             "none",
         }
 
-    @callback
-    def _recalculate_total_kw(self) -> None:
+    async def _async_recalculate_total_kw(self) -> None:
         """Recalculate total estimated home power usage from configured profiles."""
         profiles = self.hass.data.get(DOMAIN, {}).get("virtual_power_profiles", [])
         total_watts = 0.0
@@ -393,14 +392,16 @@ class TotalEnergySensor(SensorEntity, RestoreEntity):
         }
 
         if tracked_entities:
+            async def async_callback(*_):
+                await self._async_recalculate_total_kw()
             unsubscribe = async_track_state_change_event(
                 self.hass,
                 list(tracked_entities),
-                lambda *_: self._recalculate_total_kw(),
+                lambda *_: self.hass.async_create_task(self._async_recalculate_total_kw()),
             )
             self._unsubscribers.append(unsubscribe)
 
-        self._recalculate_total_kw()
+        await self._async_recalculate_total_kw()
 
     async def async_will_remove_from_hass(self) -> None:
         """Clean up callbacks when the entity is removed."""
