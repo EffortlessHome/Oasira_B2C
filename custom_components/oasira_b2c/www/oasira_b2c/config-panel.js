@@ -276,7 +276,7 @@ class ConfigPanel extends HTMLElement {
         <div class="header-section">
           <div class="profile-info">
             <div id="current-user">
-              <img src="/local/Oasira/user.png" alt="Profile">
+              <img src="/local/oasira_b2c/user.png" alt="Profile">
               <h2 id="user-name">Loading...</h2>
               <p id="ha-url">Connecting...</p>
             </div>
@@ -288,8 +288,8 @@ class ConfigPanel extends HTMLElement {
 
           <div class="system-status">
              <div class="brand-logo">
-               <a href="https://www.Oasira.co" target="_blank">
-                 <img src="/local/Oasira/ehlogo.jpg" alt="EH Logo">
+               <a href="https://www.oasira.ai" target="_blank">
+                 <img src="/local/oasira_b2c/ehlogo.jpg" alt="Oasira Logo">
                </a>
              </div>
              <div class="status-grid">
@@ -299,15 +299,15 @@ class ConfigPanel extends HTMLElement {
                 </div>
                 <div class="status-item">
                   <h4>Account</h4>
-                  <a href="https://my.Oasira.co" target="_blank">Manage Subscription</a>
+                  <a href="https://my.oasira.ai" target="_blank">Manage Subscription</a>
                 </div>
              </div>
           </div>
         </div>
 
         <div class="nav-grid">
-          ${this._tile("/Oasira-area-panel", "mdi:label-multiple", "Set Device Areas")}
-          ${this._tile("/Oasira-label-panel", "mdi:label", "Set Labels")}
+          ${this._tile("/oasira-area-panel", "mdi:label-multiple", "Set Device Areas")}
+          ${this._tile("/oasira-label-panel", "mdi:label", "Set Labels")}
         </div>
 
         <div id="matter-section" class="matter-section">
@@ -318,8 +318,8 @@ class ConfigPanel extends HTMLElement {
         </div>
 
         <div class="footer-links">
-           <a href="https://Oasira.co" target="_blank">Oasira.co</a> |
-           <a href="https://Oasira.co/support" target="_blank">Support</a>
+           <a href="https://oasira.ai" target="_blank">Oasira.ai</a> |
+           <a href="https://oasira.ai/support" target="_blank">Support</a>
         </div>
       </div>
     `;

@@ -925,8 +925,6 @@ def register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "update_entity", update_entity)
 
     hass.services.async_register(DOMAIN, "create_alert", create_alert)
-    # Backward compatibility for legacy automation calls.
-    hass.services.async_register(DOMAIN, "create_alert_service", create_alert)
 
     hass.services.async_register(
         DOMAIN, "deploy_latest_config", handle_deploy_latest_config

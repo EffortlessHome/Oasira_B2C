@@ -126,7 +126,7 @@ action:
       entity_name: !input stepssensor
       event_type: "{{ messagewithparams }}"
 
-  - service: oasira_b2c.create_alert_service
+  - service: oasira_b2c.create_alert
     data:
       alert_type: "Daily Activity Update"
       alert_description: "{{ messagewithparams }}"

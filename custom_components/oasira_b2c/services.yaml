@@ -115,7 +115,9 @@ send_person_notification:
 
     data:
       description: Additional data to include in the notification
-      example: {"action": "open_camera", "camera_id": "front_door"}
+      example:
+        action: open_camera
+        camera_id: front_door
       selector:
         object:
 
@@ -466,7 +468,10 @@ evaluate_timeline_activity:
           mode: box
     focus_areas:
       required: false
-      example: ["safety", "energy", "convenience"]
+      example:
+        - safety
+        - energy
+        - convenience
       description: "Optional topics to prioritize during optimization analysis"
       default: []
       selector:

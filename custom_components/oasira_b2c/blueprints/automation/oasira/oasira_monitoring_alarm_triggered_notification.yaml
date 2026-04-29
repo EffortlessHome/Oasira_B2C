@@ -36,7 +36,7 @@ action:
   - service: notify.oasira
     data:
       message: !input notification_message
-      title: "Security Alarm Triggered"
+      title: "Monitoring Alarm Triggered"
       data:
         actions:
           - action: "{{ action_confirm }}"
@@ -58,12 +58,12 @@ action:
   - choose:
       - conditions: "{{ wait.trigger.event.data.action == action_confirm }}"
         sequence:
-          - action: Oasira.confirmpendingalarmservice
+          - action: oasira_b2c.confirmpendingalarmservice
             data: {}
 
       - conditions: "{{ wait.trigger.event.data.action == action_dismiss }}"
         sequence:
-          - action: Oasira.cancelalarmservice
+          - action: oasira_b2c.cancelalarmservice
             metadata: {}
             data: {}
           - action: switch.turn_off
@@ -74,7 +74,7 @@ action:
 
     default: # If timeout occurs
       - sequence:
-          - action: Oasira.confirmpendingalarmservice
+          - action: oasira_b2c.confirmpendingalarmservice
             data: {}
 
   - choose: []

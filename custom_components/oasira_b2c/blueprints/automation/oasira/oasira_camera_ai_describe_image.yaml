@@ -1,0 +1,99 @@
+blueprint:
+  name: Camera Describe Image with AI
+  description:
+    This automation blueprint converts a non-AI camera to a generic detecting one using AI. It uses the
+    camera motion trigger to analyze the snapshot for the AI prompt on the image and allows taking actions based on the results.
+  domain: automation
+  author: Oasira Home
+  input:
+    sensor:
+      name: Camera Motion Binary Sensor
+      description: The sensor wich triggers the detection
+      selector:
+        entity:
+          domain:
+            - binary_sensor
+          multiple: false
+    camera:
+      name: Camera
+      description: The camera which creates the snapshot
+      selector:
+        entity:
+          domain:
+            - camera
+          multiple: false
+  
+    ai_prompt:
+      name: Prompt to use with AI
+      description: Enter the prompt to use to detect something in the image captured by motion
+
+    notification_title:
+      name: Notification title
+      description: The title of the notification message
+
+    additional_actions:
+      name: Additional Actions
+      description: Add additional actions to execute (Optional)
+      default: []
+      selector:
+        action: {}
+trigger:
+  - platform: state
+    entity_id: !input sensor
+    to: "on"
+
+variables:
+  sensor: !input sensor
+  sensor_name: "{{ states[sensor].attributes.friendly_name }}"
+  camera: !input camera
+  camera_name: "{{ states[camera].attributes.friendly_name }}"
+
+  time: "{{ now().strftime('%H:%M') }}"
+  date: "{{ now().strftime('%Y-%m-%d') }}"
+  notification_title: !input notification_title
+
+  snapshot_create_file_path: "/media/snapshots/{{ camera_name }}/{{ now().strftime('%Y%m%d-%H%M%S') }}.jpg"
+  # File path for notifications (served via /media/local/)
+  snapshot_access_file_path: "{{ snapshot_create_file_path | replace('/media','/media/local') }}"
+  # Media source ID for AI task (convert path to media-source://)
+  snapshot_media_source: "{{ snapshot_create_file_path | replace('/media','media-source://media_source/local') }}"
+
+  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}]"
+
+  additional_actions: !input additional_actions
+  prompt: !input ai_prompt
+
+action:
+  - service: camera.snapshot
+    entity_id: !input camera
+    data:
+      filename: "{{ snapshot_create_file_path }}"
+
+  - action: oasira_b2c.analyze_image
+    data:
+      image_path: "{{ snapshot_create_file_path }}"
+      prompt: Please describe this image in detail.
+    response_variable: responsevar
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input camera
+      entity_name: "{{ camera_name }}"
+      event_type: "{{ timelineentry }}"
+
+  - condition: state
+    entity_id: binary_sensor.motion_notification_sensor
+    state: "on"
+
+  - service: notify.oasira
+    data:
+      title: !input notification_title
+      message: "{{ responsevar }}"
+      data:
+        video: "{{ snapshot_access_file_path }}"
+        attachment:
+          url: "{{ snapshot_access_file_path }}"
+
+  - choose: []
+    default: !input additional_actions
+mode: parallel

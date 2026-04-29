@@ -59,7 +59,7 @@ action:
     data: {}
     target:
       entity_id: !input securityalarm  
-  - service: oasira_b2c.create_alert_service
+  - service: oasira_b2c.create_alert
     data:
       alert_type: Security Alarm Trigger
       alert_description: "Security Alarm Triggered by {{ triggering_sensor.entity_id }}"

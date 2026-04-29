@@ -44,12 +44,12 @@ action:
   - choose:
       - conditions: "{{ wait.trigger is not none }}"
         sequence:
-          - action: Oasira.confirmpendingalarmservice
+          - action: oasira_b2c.confirmpendingalarmservice
             data: {}
 
     default: # If timeout occurs
       - sequence:
-          - action: Oasira.confirmpendingalarmservice
+          - action: oasira_b2c.confirmpendingalarmservice
             data: {}
 
   - choose: []

@@ -78,7 +78,7 @@ action:
       entity_name: !input switch
       event_type: "{{ messagewithparams }}"
 
-  - service: oasira_b2c.create_alert_service
+  - service: oasira_b2c.create_alert
     data:
       alert_type: "Medication Not Taken Notification"
       alert_description: "{{ messagewithparams }}"

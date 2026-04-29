@@ -59,7 +59,7 @@ action:
       message: Door or Window Left Open Or Unlocked When No One Home
       data:
         priority: high
-  - service: oasira_b2c.create_alert_service
+  - service: oasira_b2c.create_alert
     data:
       alert_type: Door or Window left open or unlocked
       alert_description: Door or Window Left Open Or Unlocked When No One Home

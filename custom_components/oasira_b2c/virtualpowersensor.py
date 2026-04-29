@@ -102,14 +102,26 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
         state = self.hass.states.get(self._entity_id)
 
         if state:
-            self._state = self._watts if self._is_active_state(state.state) else 0.0
-            _LOGGER.debug(
-                "Entity: %s, State: %s, Power: %sW",
+            active = self._is_active_state(state.state)
+            _LOGGER.info(
+                "[VirtualPowerSensor] Entity: %s, State: %s, Active: %s, Configured Watts: %s",
                 self._entity_id,
                 state.state,
+                active,
+                self._watts,
+            )
+            self._state = self._watts if active else 0.0
+            _LOGGER.debug(
+                "[VirtualPowerSensor] Setting power for %s to %sW (entity state: %s)",
+                self._entity_id,
                 self._state,
+                state.state,
             )
         else:
+            _LOGGER.warning(
+                "[VirtualPowerSensor] No state found for entity: %s. Setting power to 0W.",
+                self._entity_id,
+            )
             self._state = 0.0
 
         self.async_write_ha_state()
@@ -127,6 +139,10 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
                 self._state = 0.0
 
         # Register state change callback and store unsubscribe callback for cleanup
+        _LOGGER.info(
+            "[VirtualPowerSensor] Registering state change callback for entity: %s",
+            self._entity_id,
+        )
         self._unsubscribe = async_track_state_change_event(
             self.hass,
             [self._entity_id],
