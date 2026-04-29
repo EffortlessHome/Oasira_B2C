@@ -143,7 +143,9 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
         self._unsubscribe = async_track_state_change_event(
             self.hass,
             [self._entity_id],
-            lambda *_: self.hass.async_create_task(self.async_update_virtual_power()),
+            lambda *_: self.hass.loop.call_soon_threadsafe(
+                lambda: self.hass.async_create_task(self.async_update_virtual_power())
+            ),
         )
         await self.async_update_virtual_power()
 
@@ -396,7 +398,9 @@ class TotalEnergySensor(SensorEntity, RestoreEntity):
             unsubscribe = async_track_state_change_event(
                 self.hass,
                 list(tracked_entities),
-                lambda *_: self.hass.async_create_task(self._async_recalculate_total_kw()),
+                lambda *_: self.hass.loop.call_soon_threadsafe(
+                    lambda: self.hass.async_create_task(self._async_recalculate_total_kw())
+                ),
             )
             self._unsubscribers.append(unsubscribe)
 
