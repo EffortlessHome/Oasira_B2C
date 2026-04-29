@@ -798,8 +798,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # Wait 50 minutes before refreshing (tokens expire in 60 minutes)
                 await asyncio.sleep(50 * 60)
 
-    # Start the refresh task
-    hass.async_create_task(refresh_firebase_token())
+    # Schedule the refresh task after setup completes to avoid blocking startup
+    async def schedule_refresh_task(*_):
+        hass.async_create_task(refresh_firebase_token())
+    hass.bus.async_listen_once("homeassistant_started", schedule_refresh_task)
 
     return True
 
