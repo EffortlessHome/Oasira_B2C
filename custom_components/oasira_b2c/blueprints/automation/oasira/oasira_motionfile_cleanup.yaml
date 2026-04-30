@@ -27,7 +27,7 @@ trigger:
   - platform: time
     at: !input execution_time
 action:
-  - service: Oasira.createcleanmotionfilesservice
+  - service: oasira_b2c.clean_motion_files
     data:
       age: !input age_sensor
   - choose: []

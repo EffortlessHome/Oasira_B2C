@@ -20,6 +20,6 @@ triggers:
     entity_id: !input triggeringsensor
     to: "on"
 action:
-  - action: Oasira.createeventservice
+  - action: oasira_b2c.create_event
     data:
       entity_id: "{{ trigger.entity_id }}"
