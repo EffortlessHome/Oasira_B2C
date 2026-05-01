@@ -1,0 +1,118 @@
+blueprint:
+  name: Oasira Scan Home Automation Patterns
+  description: Calls the oasira_b2c.scan_home_automation_patterns service to analyze and generate automation patterns.
+  domain: automation
+  input:
+    time_range_days:
+      name: Time Range (Days)
+      description: Number of days to scan for patterns
+      default: 7
+      selector:
+        number:
+          min: 1
+          max: 30
+          step: 1
+    include_entities:
+      name: Include Entities
+      description: Entities to include in the analysis
+      default: []
+      selector:
+        entity:
+          multiple: true
+    exclude_entities:
+      name: Exclude Entities
+      description: Entities to exclude from the analysis
+      default: []
+      selector:
+        entity:
+          multiple: true
+    pattern_types:
+      name: Pattern Types
+      description: Types of patterns to analyze
+      default:
+        - usage_patterns
+        - time_patterns
+      selector:
+        select:
+          multiple: true
+          options:
+            - usage_patterns
+            - time_patterns
+    min_confidence:
+      name: Minimum Confidence
+      description: Minimum confidence threshold for patterns
+      default: 0.7
+      selector:
+        number:
+          min: 0
+          max: 1
+          step: 0.01
+    time_window_minutes:
+      name: Time Window (Minutes)
+      description: Time window in minutes for pattern grouping
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 240
+          step: 1
+    save_results:
+      name: Save Results
+      description: Whether to save results to a file
+      default: true
+      selector:
+        boolean:
+    results_file:
+      name: Results File
+      description: File name to save analysis results
+      default: automation_analysis_results.yaml
+      selector:
+        text: {}
+    create_automations:
+      name: Create Automations
+      description: Whether to create automations from patterns
+      default: true
+      selector:
+        boolean:
+    automations_file:
+      name: Automations File
+      description: File name to save generated automations
+      default: automations.yaml
+      selector:
+        text:
+
+trigger:
+  - platform: time
+    at: '03:00:00'
+
+action:
+  - service: oasira_b2c.scan_home_automation_patterns
+    data:
+      time_range_days: !input time_range_days
+      include_entities: !input include_entities
+      exclude_entities: !input exclude_entities
+      pattern_types: !input pattern_types
+      min_confidence: !input min_confidence
+      time_window_minutes: !input time_window_minutes
+      save_results: !input save_results
+      results_file: !input results_file
+      create_automations: !input create_automations
+      automations_file: !input automations_file
+    response_variable: scan_results
+  - variables:
+      summary: >-
+        Oasira Automation Pattern Analysis:\n
+        Patterns found: {{ scan_results.pattern_count if scan_results is defined and scan_results.pattern_count is defined else 'N/A' }}\n
+        Top Patterns:\n
+        {%- if scan_results is defined and scan_results.patterns is defined %}
+        {%- for p in scan_results.patterns[:5] %}
+        - {{ p.description }} (Confidence: {{ p.confidence }})
+        {%- endfor %}
+        {%- else %}
+        No patterns found.
+        {%- endif %}
+  - service: notify.oasira
+    data:
+      message: "{{ summary }}"
+
+mode: single

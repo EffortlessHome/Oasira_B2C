@@ -1,0 +1,80 @@
+blueprint:
+  name: Oasira Evaluate Timeline Activity
+  description: Calls the oasira_b2c.evaluate_timeline_activity service to analyze timeline activity and provide suggestions.
+  domain: automation
+  input:
+    sensor_entity_id:
+      name: Timeline Activity Sensor
+      description: The sensor entity to evaluate
+      default: sensor.oasira_timeline_activity
+      selector:
+        entity:
+          domain: sensor
+    max_events:
+      name: Max Events
+      description: Maximum number of events to consider
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+    suggestion_count:
+      name: Suggestion Count
+      description: Number of suggestions to return
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          step: 1
+    focus_areas:
+      name: Focus Areas
+      description: Areas to focus on for evaluation
+      default:
+        - safety
+        - energy
+        - convenience
+      selector:
+        select:
+          multiple: true
+          options:
+            - safety
+            - energy
+            - convenience
+
+trigger:
+  - platform: state
+    entity_id: !input sensor_entity_id
+
+action:
+
+  - service: oasira_b2c.evaluate_timeline_activity
+    data:
+      sensor_entity_id: !input sensor_entity_id
+      max_events: !input max_events
+      suggestion_count: !input suggestion_count
+      focus_areas: !input focus_areas
+    response_variable: eval_results
+
+  # Step: Evaluate results and send summary notification
+  - variables:
+      count: !input suggestion_count
+      focus: !input focus_areas
+      suggestions: "{{ eval_results.suggestions if eval_results is defined and eval_results.suggestions is defined else [] }}"
+      total_events: "{{ eval_results.total_events if eval_results is defined and eval_results.total_events is defined else 'N/A' }}"
+      summary: >-
+        Timeline Activity Evaluation:
+        Top Suggestions:
+        {% for s in suggestions[:count] %}
+        - {{ s.title }}: {{ s.description }}
+        {% endfor %}
+
+        Stats:
+        Total Events: {{ total_events }}
+        Focus Areas: {% if focus %}{{ focus | join(', ') }}{% else %}None{% endif %}
+  - service: notify.oasira
+    data:
+      message: "{{ summary }}"
+
+mode: single

@@ -1,0 +1,53 @@
+blueprint:
+  name: Oasira Summarize Timeline Period
+  description: Calls the oasira_b2c.summarize_timeline_period service and sends a summary notification.
+  domain: automation
+  input:
+    start_time:
+      name: Start Time
+      description: Start of the period
+      default: '2026-04-20T00:00:00.000Z'
+      selector:
+        datetime: {}
+    end_time:
+      name: End Time
+      description: End of the period
+      default: '2026-04-20T23:59:59.000Z'
+      selector:
+        datetime: {}
+    include_entities:
+      name: Include Entities
+      description: Entities to include in the summary
+      default: []
+      selector:
+        entity:
+          multiple: true
+
+trigger:
+  - platform: time
+    at: '04:00:00'
+
+action:
+  - service: oasira_b2c.summarize_timeline_period
+    data:
+      start_time: !input start_time
+      end_time: !input end_time
+      include_entities: !input include_entities
+    response_variable: summary_result
+  - variables:
+      included: !input include_entities
+      summary: >-
+        Timeline Summary:
+        {{ summary_result.summary if summary_result is defined and summary_result.summary is defined else 'No summary available.' }}
+
+        Entities:
+        {% if included %}
+        {% for e in included %}- {{ e }}
+        {% endfor %}
+        {% else %}None
+        {% endif %}
+  - service: notify.oasira
+    data:
+      message: "{{ summary }}"
+
+mode: single
