@@ -1,8 +1,16 @@
+
 blueprint:
   name: Oasira Scan Home Automation Patterns
   description: Calls the oasira_b2c.scan_home_automation_patterns service to analyze and generate automation patterns.
   domain: automation
   input:
+    scheduled_time:
+      name: Scheduled Time
+      description: Time of day to run the automation (HH:MM:SS)
+      default: '02:00:00'
+      selector:
+        time: {}
+
     time_range_days:
       name: Time Range (Days)
       description: Number of days to scan for patterns
@@ -83,7 +91,8 @@ blueprint:
 
 trigger:
   - platform: time
-    at: '03:00:00'
+    at: !input scheduled_time
+
 
 action:
   - service: oasira_b2c.scan_home_automation_patterns

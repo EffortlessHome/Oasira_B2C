@@ -1,8 +1,16 @@
+
 blueprint:
   name: Oasira Evaluate Timeline Activity
   description: Calls the oasira_b2c.evaluate_timeline_activity service to analyze timeline activity and provide suggestions.
   domain: automation
   input:
+    scheduled_time:
+      name: Scheduled Time
+      description: Time of day to run the automation (HH:MM:SS)
+      default: '02:00:00'
+      selector:
+        time: {}
+
     sensor_entity_id:
       name: Timeline Activity Sensor
       description: The sensor entity to evaluate
@@ -46,6 +54,8 @@ blueprint:
 trigger:
   - platform: state
     entity_id: !input sensor_entity_id
+  - platform: time
+    at: !input scheduled_time
 
 action:
 

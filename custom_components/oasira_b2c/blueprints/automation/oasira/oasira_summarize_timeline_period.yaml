@@ -1,8 +1,16 @@
+
 blueprint:
   name: Oasira Summarize Timeline Period
   description: Calls the oasira_b2c.summarize_timeline_period service and sends a summary notification.
   domain: automation
   input:
+    scheduled_time:
+      name: Scheduled Time
+      description: Time of day to run the automation (HH:MM:SS)
+      default: '02:00:00'
+      selector:
+        time: {}
+
     start_time:
       name: Start Time
       description: Start of the period
@@ -25,7 +33,8 @@ blueprint:
 
 trigger:
   - platform: time
-    at: '04:00:00'
+    at: !input scheduled_time
+
 
 action:
   - service: oasira_b2c.summarize_timeline_period
