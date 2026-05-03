@@ -1,3 +1,4 @@
+
 """Services for the Oasira AI Conversation component."""
 
 import base64
@@ -23,6 +24,11 @@ from typing import Any
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
+
+# Move schema definition after both voluptuous and cv imports
+GET_NOTIFICATION_DEVICES_SCHEMA = vol.Schema({
+    vol.Required("email"): cv.string,
+})
 
 from .ai_const import (
     CONF_BASE_URL,
@@ -145,6 +151,16 @@ def _get_integration_settings(hass: HomeAssistant) -> dict[str, Any]:
 
 
 async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
+
+    async def get_notification_devices(call: ServiceCall) -> ServiceResponse:
+        """Get notification devices for a person by email."""
+        email = call.data["email"]
+        manager = hass.data.get(DOMAIN, {}).get("person_notification_manager")
+        if manager is None:
+            raise HomeAssistantError("PersonNotificationManager not initialized")
+        devices = manager.get_devices_for_person(email)
+        return {"devices": [d.to_dict() for d in devices]}
+
     """Set up services for the Ollama conversation component."""
 
     async def change_config(call: ServiceCall) -> None:
@@ -690,6 +706,14 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
         "evaluate_timeline_activity",
         evaluate_timeline_activity,
         schema=EVALUATE_TIMELINE_ACTIVITY_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "get_notification_devices_for_person",
+        get_notification_devices,
+        schema=GET_NOTIFICATION_DEVICES_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
 
