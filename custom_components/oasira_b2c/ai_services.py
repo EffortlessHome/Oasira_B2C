@@ -158,7 +158,11 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
         manager = hass.data.get(DOMAIN, {}).get("person_notification_manager")
         if manager is None:
             raise HomeAssistantError("PersonNotificationManager not initialized")
+        # Debug log the internal mapping and queried email
+        _LOGGER.debug("[get_notification_devices] Queried email: '%s'", email)
+        _LOGGER.debug("[get_notification_devices] All registered emails: %s", list(manager._devices_by_person.keys()))
         devices = manager.get_devices_for_person(email)
+        _LOGGER.debug("[get_notification_devices] Devices found: %s", [d.to_dict() for d in devices])
         return {"devices": [d.to_dict() for d in devices]}
 
     """Set up services for the Ollama conversation component."""
