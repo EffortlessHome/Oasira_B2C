@@ -251,74 +251,43 @@ async def _get_firebase_access_token(
 ) -> tuple[str | None, str | None]:
     """Get a valid Firebase access token for sending FCM messages."""
     try:
-        creds_path = (
-            hass.config.path(
-                "custom_components/oasira_b2c/firebase_service_account.json"
-            )
-            if isinstance(hass.config, object) and hasattr(hass.config, "path")
-            else None
-        )
-
-        if not creds_path:
-            _LOGGER.error("Cannot determine credentials path")
-            return None, None
-
         import os
-
+        import aiohttp
+        from google.auth.crypt import rsa
+        creds_path = hass.config.path("custom_components/oasira_b2c/firebase_service_account.json")
         if not os.path.exists(creds_path):
-            creds_dict = domain_data.get("firebase_credentials")
-            if creds_dict and isinstance(creds_dict, dict):
-                project_id = creds_dict.get("project_id")
-            else:
-                project_id = domain_data.get("ai_key", "").split("/")[0] or None
-        else:
-            try:
-                with open(creds_path) as f:
-                    creds_dict = json.load(f)
-                    project_id = creds_dict.get("project_id")
-            except Exception as e:
-                _LOGGER.error("Failed to load Firebase credentials: %s", e)
-                project_id = None
-
-        if not project_id:
-            _LOGGER.error("No Firebase project ID found")
+            _LOGGER.error("Firebase service account file not found at %s", creds_path)
             return None, None
-
-        now = __import__("time").time()
-        exp = int(now) + 3600
-
+        with open(creds_path, "r") as f:
+            creds = json.load(f)
+        project_id = creds.get("project_id")
+        if not project_id:
+            _LOGGER.error("No Firebase project ID found in credentials file")
+            return None, None
+        now = int(__import__("time").time())
         payload = {
-            "iss": domain_data.get("firebase_service_account_email"),
+            "iss": creds["client_email"],
             "scope": "https://www.googleapis.com/auth/firebase.messaging",
             "aud": "https://oauth2.googleapis.com/token",
-            "exp": exp,
-            "iat": int(now),
+            "iat": now,
+            "exp": now + 3600,
         }
-
-        private_key = domain_data.get("firebase_private_key")
-        if not private_key:
-            _LOGGER.warning(
-                "No Firebase private key in domain data, attempting file-based auth"
-            )
-            if not creds_path or not os.path.exists(creds_path):
-                return None, None
-
-            try:
-                with open(creds_path) as f:
-                    creds_dict = json.load(f)
-                    payload["iss"] = creds_dict.get("client_email")
-                    private_key = creds_dict.get("private_key")
-            except Exception as e:
-                _LOGGER.error("Failed to load Firebase private key: %s", e)
-                return None, None
-
-        if not private_key or not payload.get("iss"):
-            _LOGGER.error("Missing Firebase authentication details")
-            return None, None
-
-        token = jwt.encode(private_key, payload)
-        return token, project_id
-
+        signer = rsa.RSASigner.from_string(creds["private_key"])
+        assertion = jwt.encode(signer, payload)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                    "assertion": assertion,
+                },
+            ) as resp:
+                result = await resp.json()
+                access_token = result.get("access_token")
+                if not access_token:
+                    _LOGGER.error("Failed to obtain Firebase access token: %s", result)
+                    return None, None
+                return access_token, project_id
     except Exception as e:
         _LOGGER.error("Failed to get Firebase access token: %s", e)
         return None, None
