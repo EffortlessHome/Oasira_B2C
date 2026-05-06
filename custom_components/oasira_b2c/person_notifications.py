@@ -251,29 +251,44 @@ async def _get_firebase_access_token(
 ) -> tuple[str | None, str | None]:
     """Get a valid Firebase access token for sending FCM messages."""
     try:
-        import os
-        import aiohttp
-        from google.auth.crypt import rsa
-        creds_path = hass.config.path("custom_components/oasira_b2c/firebase_service_account.json")
-        if not os.path.exists(creds_path):
-            _LOGGER.error("Firebase service account file not found at %s", creds_path)
+        from oasira import OasiraAPIClient, OasiraAPIError
+        import time
+        id_token = hass.data.get(DOMAIN, {}).get("id_token")
+        if not id_token:
+            _LOGGER.error("Missing id_token for Firebase access")
             return None, None
-        with open(creds_path, "r") as f:
-            creds = json.load(f)
-        project_id = creds.get("project_id")
+
+        async with OasiraAPIClient(id_token=id_token) as client:
+            firebase_config = await client.get_firebase_config()
+
+        google_firebase_raw = (
+            firebase_config.get("Google_Firebase") if firebase_config else None
+        )
+        if not google_firebase_raw:
+            _LOGGER.error("Missing Google_Firebase config from Oasira")
+            return None, None
+
+        service_account_info = json.loads(google_firebase_raw)
+        private_key = service_account_info["private_key"]
+        client_email = service_account_info["client_email"]
+        project_id = service_account_info.get("project_id")
         if not project_id:
-            _LOGGER.error("No Firebase project ID found in credentials file")
+            _LOGGER.error("Missing project_id in Firebase service account")
             return None, None
-        now = int(__import__("time").time())
+
+        now = int(time.time())
         payload = {
-            "iss": creds["client_email"],
+            "iss": client_email,
             "scope": "https://www.googleapis.com/auth/firebase.messaging",
             "aud": "https://oauth2.googleapis.com/token",
             "iat": now,
             "exp": now + 3600,
         }
-        signer = rsa.RSASigner.from_string(creds["private_key"])
+
+        signer = rsa.RSASigner.from_string(private_key)
         assertion = jwt.encode(signer, payload)
+
+        import aiohttp
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 "https://oauth2.googleapis.com/token",
@@ -283,11 +298,13 @@ async def _get_firebase_access_token(
                 },
             ) as resp:
                 result = await resp.json()
-                access_token = result.get("access_token")
-                if not access_token:
-                    _LOGGER.error("Failed to obtain Firebase access token: %s", result)
+                if "access_token" not in result:
+                    _LOGGER.error("Firebase OAuth error: %s", result)
                     return None, None
-                return access_token, project_id
-    except Exception as e:
-        _LOGGER.error("Failed to get Firebase access token: %s", e)
+                return result["access_token"], project_id
+    except OasiraAPIError as exc:
+        _LOGGER.error("Failed to fetch Firebase config: %s", exc)
+        return None, None
+    except Exception as exc:
+        _LOGGER.exception("Failed to refresh Firebase access token: %s", exc)
         return None, None
