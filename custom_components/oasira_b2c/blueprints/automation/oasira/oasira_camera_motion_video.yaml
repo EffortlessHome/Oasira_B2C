@@ -81,7 +81,7 @@ variables:
 
   additional_actions: !input additional_actions
 
-  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}]"
+  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path }}]"
 
 
 action:
