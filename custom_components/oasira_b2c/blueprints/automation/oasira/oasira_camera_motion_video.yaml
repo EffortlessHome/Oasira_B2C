@@ -79,9 +79,11 @@ variables:
     "{{ snapshot_create_file_path | replace('/media','/media/local')
     }}"
 
+  clip_access_file_path: /config/www/oasira/{{ camera_name }}/{{ date }} {{ time }}.mp4   
+
   additional_actions: !input additional_actions
 
-  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path }}]"
+  timelineentry: "{{ notification_title }} [{{ clip_access_file_path }}]"
 
 
 action:
