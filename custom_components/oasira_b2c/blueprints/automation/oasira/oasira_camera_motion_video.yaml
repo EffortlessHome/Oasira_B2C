@@ -81,6 +81,9 @@ variables:
 
   additional_actions: !input additional_actions
 
+  timelineentry: "{{ notification_title }} [{{ snapshot_access_file_path_local }}]"
+
+
 action:
   - service: camera.record
     metadata: {}
@@ -90,6 +93,13 @@ action:
       filename: "{{ snapshot_create_file_path }}"
     target:
       entity_id: !input camera
+
+  - service: oasira_b2c.create_timeline_event
+    data:
+      entity_id: !input camera
+      entity_name: "{{ camera_name }}"
+      event_type: "{{ timelineentry }}"
+
 
   - condition: state
     entity_id: switch.motion_notifications
