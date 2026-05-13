@@ -62,7 +62,6 @@ blueprint:
       description: List of conditions that must be true for this automation to run. Each condition is a Home Assistant condition block. By default, checks that binary_sensor.sleeping_sensor is off.
       default:
         - condition: state
-          continue_on_error: true
           entity_id: binary_sensor.sleeping_sensor
           state: "off"
       selector:

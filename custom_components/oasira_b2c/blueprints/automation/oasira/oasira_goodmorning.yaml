@@ -32,7 +32,6 @@ blueprint:
       description: List of conditions that must be true for this automation to run. Each condition is a Home Assistant condition block. By default, checks that binary_sensor.someone_home_sensor is on.
       default:
         - condition: or
-          continue_on_error: true
           conditions:
             - condition: state
               entity_id: binary_sensor.someone_home_sensor
