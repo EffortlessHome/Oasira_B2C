@@ -62,7 +62,6 @@ action:
     target:
       entity_id: !input doorlock
   - condition: sun
-    continue_on_error: true
     before: sunrise
     after: sunset
   - service: homeassistant.turn_on

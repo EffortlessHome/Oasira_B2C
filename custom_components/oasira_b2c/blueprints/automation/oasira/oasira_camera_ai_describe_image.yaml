@@ -85,7 +85,6 @@ action:
       event_type: "{{ timelineentry }}"
 
   - condition: state
-    continue_on_error: true
     entity_id: binary_sensor.motion_notification_sensor
     state: "on"
 

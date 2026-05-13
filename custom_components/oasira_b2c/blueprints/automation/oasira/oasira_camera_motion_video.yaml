@@ -106,7 +106,6 @@ action:
 
 
   - condition: state
-    continue_on_error: true
     entity_id: switch.motion_notifications
     state: "on"
 

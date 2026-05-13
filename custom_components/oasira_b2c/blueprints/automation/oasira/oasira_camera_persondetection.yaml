@@ -95,7 +95,6 @@ action:
     response_variable: responsevar
 
   - condition: template
-    continue_on_error: true
     value_template: "{{ 'man' or 'boy' or 'woman' or 'girl' or 'person' in responsevar.data}}"
 
   - service: oasira_b2c.create_timeline_event
@@ -106,7 +105,6 @@ action:
       event_type: "{{ timelineentry }}"
 
   - condition: state
-    continue_on_error: true
     entity_id: binary_sensor.motion_notification_sensor
     state: "on"
 
