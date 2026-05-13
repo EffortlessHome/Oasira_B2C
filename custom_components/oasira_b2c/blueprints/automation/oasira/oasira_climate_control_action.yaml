@@ -29,12 +29,14 @@ trigger:
 
 action:
   - action: climate.turn_off
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: !input target_climate
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 
 mode: single

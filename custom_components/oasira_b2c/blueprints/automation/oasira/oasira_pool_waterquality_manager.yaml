@@ -17,5 +17,6 @@ trigger:
 
 action:
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 mode: single

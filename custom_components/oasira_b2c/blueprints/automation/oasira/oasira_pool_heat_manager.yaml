@@ -70,9 +70,11 @@ action:
       below: !input target_temperature
     sequence:
     - service: switch.turn_on
+      continue_on_error: true
       target:
         entity_id: !input pool_heater
 
 - choose: []
+  continue_on_error: true
   default: !input additional_actions
 mode: single

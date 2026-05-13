@@ -88,6 +88,7 @@ variables:
 
 action:
   - service: camera.record
+    continue_on_error: true
     metadata: {}
     data:
       duration: !input video_length
@@ -97,6 +98,7 @@ action:
       entity_id: !input camera
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input camera
       entity_name: "{{ camera_name }}"
@@ -104,10 +106,12 @@ action:
 
 
   - condition: state
+    continue_on_error: true
     entity_id: switch.motion_notifications
     state: "on"
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: !input notification_title
       message: !input notification_message
@@ -117,5 +121,6 @@ action:
           url: "{{ snapshot_access_file_path }}"
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 mode: parallel

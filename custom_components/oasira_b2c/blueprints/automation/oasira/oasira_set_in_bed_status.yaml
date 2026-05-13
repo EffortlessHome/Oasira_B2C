@@ -47,11 +47,13 @@ action:
             below: !input max_distance
         sequence:
           - service: oasira_b2c.set_in_bed_state
+            continue_on_error: true
             data:
               area_id: !input area_id
               state: true
     default:
       - service: oasira_b2c.set_in_bed_state
+        continue_on_error: true
         data:
           area_id: !input area_id
           state: false

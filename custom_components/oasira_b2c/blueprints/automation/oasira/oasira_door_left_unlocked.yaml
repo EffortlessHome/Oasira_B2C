@@ -55,14 +55,17 @@ condition:
         state: "unlocked"
 action:
   - service: notify.oasira
+    continue_on_error: true
     data:
       message: Door or Window Left Open Or Unlocked When No One Home
       data:
         priority: high
   - service: oasira_b2c.create_alert
+    continue_on_error: true
     data:
       alert_type: Door or Window left open or unlocked
       alert_description: Door or Window Left Open Or Unlocked When No One Home
       status: Active
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

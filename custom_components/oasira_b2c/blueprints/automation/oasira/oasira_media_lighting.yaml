@@ -89,6 +89,7 @@ variables:
 action:
   - delay:
       seconds: "{{ delay_seconds }}"
+    continue_on_error: true
 
   - choose:
 
@@ -101,6 +102,7 @@ action:
             below: !input lux_level            
         sequence:
           - service: scene.turn_on
+            continue_on_error: true
             target:
               entity_id: !input play_scene
 
@@ -113,8 +115,10 @@ action:
             below: !input lux_level                
         sequence:
           - service: scene.turn_on
+            continue_on_error: true
             target:
               entity_id: !input stop_scene
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

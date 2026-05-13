@@ -33,14 +33,17 @@ trigger:
     to: "on"
 action:
   - service: notify.oasira
+    continue_on_error: true
     data:
       message: !input notification_message
       title: Smoke Alarm Activated
 
   - service: oasira_b2c.create_alert
+    continue_on_error: true
     data:
       alert_type: Smoke Alarm Activated
       alert_description: !input notification_message
       status: Active
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

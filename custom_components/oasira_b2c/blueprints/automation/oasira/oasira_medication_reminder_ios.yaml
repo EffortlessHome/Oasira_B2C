@@ -91,11 +91,13 @@ trigger:
 mode: restart
 action:
   - action: switch.turn_off
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: !input medtracking_switch
   - alias: Notify until the medication has been taken
+    continue_on_error: true
     repeat:
       while:
         - condition: state
@@ -103,6 +105,7 @@ action:
           state: "off"
       sequence:
         - service: logbook.log
+          continue_on_error: true
           data:
             name: !input notification_title
             message: !input logbook_message_remind
@@ -111,6 +114,7 @@ action:
             - conditions: "{{ true }}"
               sequence: !input optional_action
         - device_id: !input notify_device
+          continue_on_error: true
           domain: mobile_app
           type: notify
           title: !input notification_title
@@ -125,22 +129,25 @@ action:
                 action: skip
             tag: !input medtracking_switch
         - wait_for_trigger:
-            platform: event
-            event_type: ios.notification_action_fired
-            event_data: {}
+            - platform: event
+              event_type: ios.notification_action_fired
+              event_data: {}
           timeout:
             minutes: !input ask_later_wait_time
+          continue_on_error: true
         - choose:
             - conditions:
                 "{{ wait.trigger and wait.trigger.event.data.actionName == 'taken'
                 }}"
               sequence:
                 - action: switch.turn_on
+                  continue_on_error: true
                   metadata: {}
                   data: {}
                   target:
                     entity_id: !input medtracking_switch
                 - service: logbook.log
+                  continue_on_error: true
                   data:
                     name: !input notification_title
                     message: !input logbook_message_taken
@@ -150,34 +157,40 @@ action:
                 }}"
               sequence:
                 - service: logbook.log
+                  continue_on_error: true
                   data:
                     name: !input notification_title
                     message: !input logbook_message_later
                     entity_id: !input medtracking_switch
                 - delay:
                     minutes: !input ask_later_wait_time
+                  continue_on_error: true
             - conditions:
                 "{{ wait.trigger and wait.trigger.event.data.actionName == 'skip'
                 }}"
               sequence:
                 - action: switch.turn_on
+                  continue_on_error: true
                   metadata: {}
                   data: {}
                   target:
                     entity_id: !input medtracking_switch
                 - service: logbook.log
+                  continue_on_error: true
                   data:
                     name: !input notification_title
                     message: !input logbook_message_skip
                     entity_id: !input medtracking_switch
           default:
             - device_id: !input notify_device
+              continue_on_error: true
               domain: mobile_app
               type: notify
               message: clear_notification
               data:
                 tag: !input medtracking_switch
             - service: logbook.log
+              continue_on_error: true
               data:
                 name: !input notification_title
                 message: !input logbook_message_no_answer

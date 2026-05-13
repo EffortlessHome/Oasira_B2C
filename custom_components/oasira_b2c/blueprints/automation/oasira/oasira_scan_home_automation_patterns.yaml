@@ -96,6 +96,7 @@ trigger:
 
 action:
   - service: oasira_b2c.scan_home_automation_patterns
+    continue_on_error: true
     data:
       time_range_days: !input time_range_days
       include_entities: !input include_entities
@@ -120,7 +121,9 @@ action:
         {%- else %}
         No patterns found.
         {%- endif %}
+    continue_on_error: true
   - service: notify.oasira
+    continue_on_error: true
     data:
       message: "{{ summary }}"
 

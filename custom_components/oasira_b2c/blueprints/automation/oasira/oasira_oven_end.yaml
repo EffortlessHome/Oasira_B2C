@@ -58,11 +58,13 @@ conditions:
 action:
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: Oven Ended
       message: !input notification_message
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input oventempsensor
       entity_name: "{{ sensor_name }}"
@@ -70,4 +72,5 @@ action:
 
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

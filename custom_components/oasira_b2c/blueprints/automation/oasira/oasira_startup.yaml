@@ -26,11 +26,13 @@ condition: []
 
 action:
   - alias: Set Theme
+    continue_on_error: true
     service: frontend.set_theme
     data:
       name: !input theme_name
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 
 mode: single

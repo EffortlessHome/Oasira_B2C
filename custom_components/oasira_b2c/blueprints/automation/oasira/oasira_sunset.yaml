@@ -37,6 +37,7 @@ blueprint:
       description: List of conditions that must be true for this automation to run. Each condition is a Home Assistant condition block. By default, checks that binary_sensor.someone_home_sensor is on.
       default:
         - condition: or
+          continue_on_error: true
           conditions:
             - condition: state
               entity_id: binary_sensor.someone_home_sensor
@@ -53,10 +54,13 @@ trigger:
 condition: !input conditions
 action:
   - service: light.turn_on
+    continue_on_error: true
     target:
       entity_id: !input lighttoturnon
   - service: switch.turn_on
+    continue_on_error: true
     target:
       entity_id: !input plugtoturnon
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

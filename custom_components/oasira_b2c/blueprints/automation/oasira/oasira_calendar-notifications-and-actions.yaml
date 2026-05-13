@@ -37,4 +37,5 @@ condition:
     conditions: !input global_conditions
 action:
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

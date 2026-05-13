@@ -28,7 +28,9 @@ trigger:
     at: !input execution_time
 action:
   - service: oasira_b2c.clean_motion_files
+    continue_on_error: true
     data:
       age: !input age_sensor
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

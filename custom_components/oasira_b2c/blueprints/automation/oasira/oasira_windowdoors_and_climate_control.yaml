@@ -84,11 +84,14 @@ action:
             state: "on"
         sequence:
           - delay: !input window_open_delay
+            continue_on_error: true
           - service: climate.turn_off
+            continue_on_error: true
             target:
               entity_id: !input target_climate
 
           - service: notify.oasira
+            continue_on_error: true
             data:
               title: Climate Control Disabled
               message: !input notification_message
@@ -97,6 +100,8 @@ action:
                 ttl: 0
                 priority: high
                 url: !input data_clickaction_url
+    continue_on_error: true
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

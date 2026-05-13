@@ -90,9 +90,11 @@ trigger:
       seconds: !input leave_trigger_delay
 action:
   - service: alarm_control_panel.alarm_arm_away
+    continue_on_error: true
     target:
       entity_id: !input securityalarm
   - alias: Set presence simulation flag
+    continue_on_error: true
     variables:
       presence_simulation_enabled: !input presence_simulation_enabled
   - choose:
@@ -101,16 +103,20 @@ action:
             value_template: "{{ presence_simulation_enabled }}"
         sequence:
           - service: switch.turn_on
+            continue_on_error: true
             target:
               entity_id: switch.presence_simulation
     default:
       - service: switch.turn_off
+        continue_on_error: true
         target:
           entity_id: switch.presence_simulation
   - service: homeassistant.turn_off
+    continue_on_error: true
     data: {}
     target: !input off_target
   - service: lock.lock
+    continue_on_error: true
     target:
       entity_id: !input doorlock
   - if:
@@ -121,9 +127,12 @@ action:
             state: "on"
     then:
       - service: notify.oasira
+        continue_on_error: true
         data:
           title: "Door or Window Left Open"
           message: !input notification_message
+    continue_on_error: true
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

@@ -48,12 +48,14 @@ condition: []
 
 action:
   - service: oasira_b2c.notify_person_service
+    continue_on_error: true
     data:
       target: !input person_input
       title: !input message
       message: !input message
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 
 mode: single

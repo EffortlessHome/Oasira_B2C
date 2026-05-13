@@ -71,11 +71,13 @@ variables:
 
 action:
   - service: camera.snapshot
+    continue_on_error: true
     entity_id: !input camera
     data:
       filename: "{{ snapshot_create_file_path }}"
 
   - alias: Send image to AI
+    continue_on_error: true
     action: ai_task.generate_data
     data:
       task_name: process
@@ -91,19 +93,23 @@ action:
     response_variable: responsevar
 
   - condition: template
+    continue_on_error: true
     value_template: "{{ 'Yes' in responsevar.data}}"
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input camera
       entity_name: "{{ camera_name }}"
       event_type: "{{ timelineentry }}"
 
   - condition: state
+    continue_on_error: true
     entity_id: binary_sensor.motion_notification_sensor
     state: "on"
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: !input notification_title
       message: !input notification_message
@@ -113,5 +119,6 @@ action:
           url: "{{ snapshot_access_file_path }}"
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 mode: parallel

@@ -102,6 +102,7 @@ action:
 
         sequence:
           - service: switch.turn_on
+            continue_on_error: true
             target:
               entity_id: !input pool_pump
       - conditions:
@@ -116,6 +117,7 @@ action:
               {{ var_pump_state_changed_sice > var_turnover_rate }}
         sequence:
           - service: switch.turn_off
+            continue_on_error: true
             target:
               entity_id: !input pool_pump
       - conditions:
@@ -124,9 +126,11 @@ action:
             state: "off"
         sequence:
           - service: switch.turn_off
+            continue_on_error: true
             target:
               entity_id: !input pool_pump
     default: []
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 mode: single

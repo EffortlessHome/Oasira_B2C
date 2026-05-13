@@ -21,5 +21,6 @@ triggers:
     to: "on"
 action:
   - action: oasira_b2c.create_event
+    continue_on_error: true
     data:
       entity_id: "{{ trigger.entity_id }}"

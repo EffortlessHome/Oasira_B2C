@@ -54,16 +54,21 @@ trigger:
     to: "on"
 action:
   - service: alarm_control_panel.alarm_disarm
+    continue_on_error: true
     data:
       entity_id: !input securityalarm
   - service: lock.unlock
+    continue_on_error: true
     target:
       entity_id: !input doorlock
   - condition: sun
+    continue_on_error: true
     before: sunrise
     after: sunset
   - service: homeassistant.turn_on
+    continue_on_error: true
     data: {}
     target: !input on_target
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

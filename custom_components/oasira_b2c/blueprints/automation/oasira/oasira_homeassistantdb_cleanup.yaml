@@ -33,8 +33,10 @@ trigger:
 condition: []
 action:
   - service: recorder.purge
+    continue_on_error: true
     data:
       keep_days: !input age_sensor
       repack: true
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

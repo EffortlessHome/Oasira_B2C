@@ -56,5 +56,6 @@ condition:
   - "{{ offline_devices != '' }}"
 action:
   - choose: []
+    continue_on_error: true
     default: !input actions
 mode: single

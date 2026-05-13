@@ -38,6 +38,7 @@ trigger:
 
 action:
   - service: oasira_b2c.summarize_timeline_period
+    continue_on_error: true
     data:
       start_time: !input start_time
       end_time: !input end_time
@@ -55,7 +56,9 @@ action:
         {% endfor %}
         {% else %}None
         {% endif %}
+    continue_on_error: true
   - service: notify.oasira
+    continue_on_error: true
     data:
       message: "{{ summary }}"
 

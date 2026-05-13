@@ -35,10 +35,12 @@ trigger:
     to: "on"
 action:
   - alias: Set up variables
+    continue_on_error: true
     variables:
       action_confirm: "{{ 'CONFIRM_' ~ context.id }}"
       action_dismiss: "{{ 'DISMISS_' ~ context.id }}"
   - service: oasira_b2c.notify_person_service
+    continue_on_error: true
     data:
       target: !input person_input
       message: !input notification_message
@@ -50,6 +52,7 @@ action:
           - action: "{{ action_dismiss }}"
             title: "Disarm Alarm"
   - alias: Awaiting response
+    continue_on_error: true
     wait_for_trigger:
       - platform: event
         event_type: mobile_app_notification_action
@@ -65,14 +68,17 @@ action:
       - conditions: "{{ wait.trigger.event.data.action == action_confirm }}"
         sequence:
           - action: oasira_b2c.confirmpendingalarmservice
+            continue_on_error: true
             data: {}
 
       - conditions: "{{ wait.trigger.event.data.action == action_dismiss }}"
         sequence:
           - action: oasira_b2c.cancelalarmservice
+            continue_on_error: true
             metadata: {}
             data: {}
           - action: switch.turn_off
+            continue_on_error: true
             metadata: {}
             data: {}
             target:
@@ -84,4 +90,5 @@ action:
             data: {}
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

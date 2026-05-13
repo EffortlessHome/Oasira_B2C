@@ -77,27 +77,32 @@ variables:
 action:
 
   - service: camera.snapshot
+    continue_on_error: true
     entity_id: !input camera
     data:
       filename: "{{ snapshot_access_file_path }}"
 
   - service: camera.record
+    continue_on_error: true
     entity_id: !input camera
     data:
       filename: "{{ clip_access_file_path }}"
       duration: 5
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input camera
       entity_name: "{{ camera_name }}"
       event_type: "{{ timelineentry }}"
 
   - condition: state
+    continue_on_error: true
     entity_id: switch.motion_notifications
     state: "on"
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: !input notification_title
       message: !input notification_message
@@ -105,5 +110,6 @@ action:
         image: "{{ snapshot_access_file_path_local }}"
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 mode: parallel

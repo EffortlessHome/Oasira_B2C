@@ -54,15 +54,18 @@ conditions:
 action:
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: No Motion Detected
       message: !input notification_message
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input motion_entity
       entity_name: !input motion_entity
       event_type: !input notification_message
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

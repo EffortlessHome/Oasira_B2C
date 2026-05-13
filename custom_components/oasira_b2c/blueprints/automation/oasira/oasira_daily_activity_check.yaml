@@ -116,21 +116,25 @@ conditions:
 action:
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: "Daily Activity Update"
       message: "{{ messagewithparams }}"
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input stepssensor
       entity_name: !input stepssensor
       event_type: "{{ messagewithparams }}"
 
   - service: oasira_b2c.create_alert
+    continue_on_error: true
     data:
       alert_type: "Daily Activity Update"
       alert_description: "{{ messagewithparams }}"
       status: Active
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

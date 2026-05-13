@@ -60,6 +60,7 @@ trigger:
 action:
 
   - service: oasira_b2c.evaluate_timeline_activity
+    continue_on_error: true
     data:
       sensor_entity_id: !input sensor_entity_id
       max_events: !input max_events
@@ -83,7 +84,9 @@ action:
         Stats:
         Total Events: {{ total_events }}
         Focus Areas: {% if focus %}{{ focus | join(', ') }}{% else %}None{% endif %}
+    continue_on_error: true
   - service: notify.oasira
+    continue_on_error: true
     data:
       message: "{{ summary }}"
 

@@ -55,14 +55,17 @@ conditions:
     state: !input arming_mode
 action:
   - action: alarm_control_panel.alarm_trigger
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: !input securityalarm  
   - service: oasira_b2c.create_alert
+    continue_on_error: true
     data:
       alert_type: Security Alarm Trigger
       alert_description: "Security Alarm Triggered by {{ triggering_sensor.entity_id }}"
       status: Active  
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

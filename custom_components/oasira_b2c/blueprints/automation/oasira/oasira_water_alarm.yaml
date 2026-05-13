@@ -31,6 +31,7 @@ trigger:
 
 action:
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: Water Sensor Activated
       message: !input notification_message
@@ -39,10 +40,12 @@ action:
         priority: high
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input watersensor
       entity_name: "{{ sensor_name }}"
       event_type: !input notification_message
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

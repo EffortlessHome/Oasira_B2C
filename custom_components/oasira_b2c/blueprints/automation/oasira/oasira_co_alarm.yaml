@@ -34,16 +34,19 @@ trigger:
 action:
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: "Carbon Monoxide Alarm"
       message: !input notification_message
       data:
         priority: high
   - service: oasira_b2c.create_alert
+    continue_on_error: true
     data:
       alert_type: "Carbon Monoxide Alarm"
       alert_description: !input notification_message
       status: Active
       
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

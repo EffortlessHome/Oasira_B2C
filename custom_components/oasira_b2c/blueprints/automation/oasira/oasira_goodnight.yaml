@@ -83,6 +83,7 @@ blueprint:
       description: List of conditions that must be true for this automation to run. Each condition is a Home Assistant condition block. By default, checks that binary_sensor.sleeping_sensor is off.
       default:
         - condition: state
+          continue_on_error: true
           entity_id: binary_sensor.sleeping_sensor
           state: "off"
       selector:
@@ -101,28 +102,37 @@ action:
             state: "on"
     then:
       - service: notify.notify
+        continue_on_error: true
         metadata: {}
         data:
           message: Door or Window Left Open
+    continue_on_error: true
   - action: switch.turn_on
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: switch.sleep_mode
   - service: homeassistant.turn_on
+    continue_on_error: true
     data: {}
     target: !input on_target
   - service: lock.lock
+    continue_on_error: true
     target:
       entity_id: !input doorlock
   - service: alarm_control_panel.alarm_arm_home
+    continue_on_error: true
     target:
       entity_id: !input securityalarm
 
   - delay: !input wait_time
+    continue_on_error: true
   - service: homeassistant.turn_off
+    continue_on_error: true
     data: {}
     target: !input off_target
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

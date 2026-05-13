@@ -65,27 +65,32 @@ variables:
 
 action:
   - service: camera.snapshot
+    continue_on_error: true
     entity_id: !input camera
     data:
       filename: "{{ snapshot_create_file_path }}"
 
   - action: oasira_b2c.analyze_image
+    continue_on_error: true
     data:
       image_path: "{{ snapshot_create_file_path }}"
       prompt: Please describe this image in detail.
     response_variable: responsevar
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input camera
       entity_name: "{{ camera_name }}"
       event_type: "{{ timelineentry }}"
 
   - condition: state
+    continue_on_error: true
     entity_id: binary_sensor.motion_notification_sensor
     state: "on"
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: !input notification_title
       message: "{{ responsevar }}"
@@ -95,5 +100,6 @@ action:
           url: "{{ snapshot_access_file_path }}"
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 mode: parallel

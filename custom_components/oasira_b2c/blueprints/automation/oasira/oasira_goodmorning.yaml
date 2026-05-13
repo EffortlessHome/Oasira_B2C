@@ -32,6 +32,7 @@ blueprint:
       description: List of conditions that must be true for this automation to run. Each condition is a Home Assistant condition block. By default, checks that binary_sensor.someone_home_sensor is on.
       default:
         - condition: or
+          continue_on_error: true
           conditions:
             - condition: state
               entity_id: binary_sensor.someone_home_sensor
@@ -48,6 +49,7 @@ condition:
   !input conditions
 action:
   - action: switch.turn_off
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
@@ -57,8 +59,11 @@ action:
       minutes: 1
       seconds: 0
       milliseconds: 0
+    continue_on_error: true
   - service: alarm_control_panel.alarm_disarm
+    continue_on_error: true
     data:
       entity_id: !input securityalarm
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

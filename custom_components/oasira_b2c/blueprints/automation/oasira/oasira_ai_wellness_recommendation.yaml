@@ -43,6 +43,7 @@ trigger:
 
 action:
   - alias: Send to AI
+    continue_on_error: true
     action: ai_task.generate_data
     data:
       task_name: process
@@ -53,6 +54,7 @@ action:
     response_variable: responsevar
 
   - alias: Log suggestion
+    continue_on_error: true
     service: text.set_value
     target:
       entity_id: text.aiwellnesssuggestion
@@ -60,6 +62,7 @@ action:
       value: "{{ responsevar.data }}"
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 
 mode: single

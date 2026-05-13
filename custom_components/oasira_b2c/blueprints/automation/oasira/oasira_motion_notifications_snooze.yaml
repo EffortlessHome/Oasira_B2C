@@ -34,20 +34,24 @@ trigger:
 
 action:
   - action: switch.turn_off
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: switch.motion_notifications
 
   - delay: !input snooze_time
+    continue_on_error: true
 
   - action: switch.turn_on
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: switch.motion_notifications
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
 
 mode: single

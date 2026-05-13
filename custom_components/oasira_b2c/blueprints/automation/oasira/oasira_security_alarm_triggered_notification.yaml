@@ -30,10 +30,12 @@ trigger:
     to: "triggered"
 action:
   - service: notify.oasira
+    continue_on_error: true
     data:
       message: !input notification_message
       title: "Security Alarm Triggered"
   - alias: Awaiting response
+    continue_on_error: true
     wait_for_trigger:
       - platform: state
         entity_id: alarm_control_panel.Oasira
@@ -45,6 +47,7 @@ action:
       - conditions: "{{ wait.trigger is not none }}"
         sequence:
           - action: oasira_b2c.confirmpendingalarmservice
+            continue_on_error: true
             data: {}
 
     default: # If timeout occurs
@@ -53,4 +56,5 @@ action:
             data: {}
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

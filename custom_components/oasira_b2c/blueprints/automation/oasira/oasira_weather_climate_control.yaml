@@ -47,6 +47,7 @@ variables:
 
 action:
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: Climate Control Suggestion
       message: >
@@ -61,4 +62,5 @@ action:
             title: Turn Off Climate Device(s)
 
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

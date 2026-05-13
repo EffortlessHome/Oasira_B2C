@@ -388,6 +388,7 @@ variables:
 action:
   ########## Refresh update list ##########
   - &recalc_update_list
+    continue_on_error: true
     variables:
       core_update_entity: >
             {% for u in integration_entities('hassio') | select('search', '^update[.]')
@@ -510,6 +511,7 @@ action:
     continue_on_error: true
   - variables:
       updates_list: '{{ pending_updates_list }}'
+    continue_on_error: true
 
   ########## Check for skipping core/OS ##########
   - alias: "Re-check conditions"
@@ -528,6 +530,7 @@ action:
       }}
     then:
       - stop: Nothing to update
+        continue_on_error: true
   ########## Starting ##########
   - &logbook-variables
     if: "{{ input_verbose_logging_bool }}"
@@ -560,6 +563,7 @@ action:
   - if: "{{ input_verbose_logging_bool }}"
     then:
       - alias: "Logbook - A new update is available"
+        continue_on_error: true
         action: logbook.log
         data:
           name: Auto-update
@@ -614,21 +618,27 @@ action:
               | list
             }}
           last_backup_timestamp: '{{ last_backup_timestamp_list | max if last_backup_timestamp_list | count > 0 else None }}'
+        continue_on_error: true
       - alias: Check if backup state is defined
+        continue_on_error: true
         if: '{{ last_backup_timestamp != None }}'
         then:
           - stop: "Backup State sensor not found"
+            continue_on_error: true
       - alias: Check age of last uploaded backup
+        continue_on_error: true
         if: >-
           {{ as_timestamp(now()) - as_timestamp(last_backup_timestamp) > input_max_backup_age_seconds }}
         then:
           - stop: "Last uploaded backup is too old"
+            continue_on_error: true
   - alias: "Backup"
     continue_on_error: true
     if:
       - "{{ input_backup_bool }}"
     then:
       - if: "{{ input_verbose_logging_bool }}"
+        continue_on_error: true
         then:
           - alias: "Logbook - Backing up"
             continue_on_error: true
@@ -643,6 +653,7 @@ action:
         data:
           compressed: true
       - if: "{{ input_verbose_logging_bool }}"
+        continue_on_error: true
         then:
           - alias: "Backup triggered"
             continue_on_error: true
@@ -654,9 +665,12 @@ action:
           - variables:
               backup_wait_time: !input backup_wait_time
               backup_wait_time_seconds: '{{ (backup_wait_time | int(60)) * 60 }}'
+            continue_on_error: true
           - if: '{{ backup_wait_time_seconds > 0 }}'
+            continue_on_error: true
             then:
               - alias: "Give selected wait time for the backup" # There's no sensor for when the backup finishes
+                continue_on_error: true
                 delay: '{{ backup_wait_time_seconds }}'
     else: []
 
@@ -685,6 +699,7 @@ action:
             }}
       sequence:
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - Standard - Logbook - Starting"
               continue_on_error: true
@@ -705,7 +720,9 @@ action:
                 | map(attribute='entity_id')
                 | list
                 }}
+          continue_on_error: true
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - Standard - Logbook - Updating"
               continue_on_error: true
@@ -751,6 +768,7 @@ action:
             }}
       sequence:
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - Core - Logbook - Starting"
               continue_on_error: true
@@ -771,7 +789,9 @@ action:
                 | map(attribute='entity_id')
                 | list
                 }}
+          continue_on_error: true
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - Core - Logbook - Updating"
               continue_on_error: true
@@ -817,6 +837,7 @@ action:
             }}
       sequence:
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - OS - Logbook - Starting"
               continue_on_error: true
@@ -837,7 +858,9 @@ action:
                 | map(attribute='entity_id')
                 | list
                 }}
+          continue_on_error: true
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - OS - Logbook - Updating"
               continue_on_error: true
@@ -882,6 +905,7 @@ action:
             }}
       sequence:
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - Devices firmware - Logbook - Starting"
               continue_on_error: true
@@ -901,7 +925,9 @@ action:
                 | map(attribute='entity_id')
                 | list
                 }}
+          continue_on_error: true
         - if: "{{ input_verbose_logging_bool }}"
+          continue_on_error: true
           then:
             - alias: "Update - Devices firmware - Logbook - Updating"
               continue_on_error: true
@@ -926,6 +952,7 @@ action:
   - *recalc_update_list
   - *logbook-variables
   - if: "{{ input_verbose_logging_bool }}"
+    continue_on_error: true
     then:
       - alias: "Logbook - Updating"
         continue_on_error: true
@@ -952,6 +979,7 @@ action:
 
   ########## Restart Home Assistant ##########
   - if: "{{ input_verbose_logging_bool }}"
+    continue_on_error: true
     then:
       - alias: "Restart - Logbook"
         continue_on_error: true
@@ -992,9 +1020,11 @@ action:
         continue_on_error: true
         action: homeassistant.check_config
       - if:
+        continue_on_error: true
           - "{{ states.persistent_notification.invalid_config.state | default('unavailable') == 'notifying' or states.persistent_notification.homeassistant_check_config.state | default('unavailable') == 'notifying' }}"
         then:
           - if: "{{ input_verbose_logging_bool }}"
+            continue_on_error: true
             then:
               - alias: "Logbook: Running pre-restart actions"
                 continue_on_error: true
@@ -1011,6 +1041,7 @@ action:
                 sequence: !input actions_pre_restart
             default: []
           - if: "{{ input_verbose_logging_bool }}"
+            continue_on_error: true
             then:
               - alias: "Restart - Logbook - Skipping restart"
                 continue_on_error: true
@@ -1036,6 +1067,7 @@ action:
 
     ########## Post-update actions ##########
   - if: "{{ input_verbose_logging_bool }}"
+    continue_on_error: true
     then:
       - alias: "Logbook - Post-actions"
         continue_on_error: true
@@ -1055,6 +1087,7 @@ action:
 
     ########## Done! ##########
   - if: "{{ input_verbose_logging_bool }}"
+    continue_on_error: true
     then:
       - alias: "Logbook - Done"
         continue_on_error: true

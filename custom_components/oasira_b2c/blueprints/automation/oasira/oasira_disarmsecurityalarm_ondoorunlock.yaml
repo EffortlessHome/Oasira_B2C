@@ -39,7 +39,9 @@ trigger:
     to: unlocked
 action:
   - service: alarm_control_panel.alarm_disarm
+    continue_on_error: true
     data:
       entity_id: !input securityalarm
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

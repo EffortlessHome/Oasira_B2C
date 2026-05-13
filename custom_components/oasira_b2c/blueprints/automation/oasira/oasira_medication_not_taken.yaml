@@ -68,20 +68,24 @@ condition:
 action:
 
   - service: notify.oasira
+    continue_on_error: true
     data:
       title: "Medication Not Taken Notification"
       message: "{{ messagewithparams }}"
 
   - service: oasira_b2c.create_timeline_event
+    continue_on_error: true
     data:
       entity_id: !input switch
       entity_name: !input switch
       event_type: "{{ messagewithparams }}"
 
   - service: oasira_b2c.create_alert
+    continue_on_error: true
     data:
       alert_type: "Medication Not Taken Notification"
       alert_description: "{{ messagewithparams }}"
       status: Active
   - choose: []
+    continue_on_error: true
     default: !input additional_actions

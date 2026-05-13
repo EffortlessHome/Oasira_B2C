@@ -32,9 +32,11 @@ variables:
   triggering_sensor: "{{ trigger }}"
 action:
   - action: switch.turn_on
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: switch.monitoringalarm
   - choose: []
+    continue_on_error: true
     default: !input additional_actions
