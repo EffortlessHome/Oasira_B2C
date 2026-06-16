@@ -26,7 +26,12 @@ blueprint:
     ai_prompt:
       name: Prompt to use with AI
       description: Enter the prompt to use to detect something in the image captured by motion
-
+    ai_task_entity:
+      name: AI Task Entity
+      default: ai_task.oasira_ai_task
+      selector:
+        entity:
+          domain: ai_task
     notification_title:
       name: Notification title
       description: The title of the notification message
@@ -82,7 +87,7 @@ action:
     data:
       task_name: process
       instructions: !input ai_prompt
-      entity_id: ai_task.oasira_ai_task
+      entity_id: !input ai_task_entity
       attachments:
         media_content_id: "{{ snapshot_media_source }}"
         media_content_type: image/jpeg

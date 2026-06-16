@@ -22,7 +22,12 @@ blueprint:
           domain:
             - camera
           multiple: false
-
+    ai_task_entity:
+      name: AI Task Entity
+      default: ai_task.oasira_ai_task
+      selector:
+        entity:
+          domain: ai_task
     notification_title:
       name: Notification title
       description: 'Default: "Person detected!"'
@@ -84,7 +89,7 @@ action:
         Very briefly describe what you see in this image from my
         camera. Your message needs to be short to fit in a phone notification.
         Don't describe stationary objects or buildings.
-      entity_id: ai_task.oasira_ai_task
+      entity_id: !input ai_task_entity
       attachments:
         media_content_id: "{{ snapshot_media_source }}"
         media_content_type: image/jpeg

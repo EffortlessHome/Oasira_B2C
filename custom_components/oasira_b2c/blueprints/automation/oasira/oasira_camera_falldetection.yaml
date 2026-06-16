@@ -19,7 +19,12 @@ blueprint:
       selector:
         entity:
           domain: camera
-
+    ai_task_entity:
+      name: AI Task Entity
+      default: ai_task.oasira_ai_task
+      selector:
+        entity:
+          domain: ai_task
     notification_title:
       name: Notification title
       description: 'Default: "Fall detected!"'
@@ -85,7 +90,7 @@ action:
         - If there is a person in the image.
         - If the person appears to have fallen or is lying in an unusual or dangerous position.
         Return only "yes" or "no".
-      entity_id: ai_task.oasira_ai_task
+      entity_id: !input ai_task_entity
       attachments:
         media_content_id: "{{ snapshot_media_source }}"
         media_content_type: image/jpeg
