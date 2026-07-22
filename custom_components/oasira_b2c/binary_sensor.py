@@ -541,23 +541,29 @@ class MonitoringAlarm(BinarySensorEntity, RestoreEntity):
         """Return the state of the sensor."""
         return self._state
 
-    async def async_update(self) -> None:
-        """Fetch new state data for the sensor.
+async def async_update(self) -> None:
+    """Fetch new state data for the sensor."""
 
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        entity_id = "switch.monitoringalarm"
-        switch_state = self.hass.states.get(entity_id)
+    entity_id = "switch.monitoringalarm"
+    switch_state = self.hass.states.get(entity_id)
 
-        turnOn = self._state == "off" and switch_state.state == "on"
-        turnOff = self._state == "on" and switch_state.state == "off"
+    # Safely retrieve the state
+    new_state = switch_state.state if switch_state is not None else None
 
-        self._state = switch_state.state
+    turn_on = self._state == "off" and new_state == "on"
+    turn_off = self._state == "on" and new_state == "off"
 
-        if turnOn:
-            await async_creatependingalarm(self.hass, ALARM_TYPE_MONITORING, None)
-        elif turnOff:
-            hass = HASSComponent.get_hass()
+    self._state = new_state
+
+    if turn_on:
+        await async_creatependingalarm(
+            self.hass,
+            ALARM_TYPE_MONITORING,
+            None,
+        )
+    elif turn_off:
+        hass = HASSComponent.get_hass()
+        if hass is not None:
             await async_cancelalarm(hass)
 
 

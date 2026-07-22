@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import json
 from typing import Optional, List
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -40,6 +41,11 @@ from .personsensor import eh_personSensor
 from .const import DOMAIN, NAME
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _sanitize_unique_id(value: str) -> str:
+    """Normalize a string for unique ID usage."""
+    return re.sub(r"[^a-z0-9_]+", "_", value.lower()).strip("_")
 
 
 async def async_setup_entry(
@@ -89,6 +95,7 @@ async def async_setup_entry(
         name = profile.get("name") or profile.get("entity_id") or "virtual_device"
         wattage = profile.get("wattage", 0)
         always_on = bool(profile.get("always_on", False))
+        profile_key = profile.get("key")
 
         if always_on:
             _LOGGER.debug(
@@ -96,7 +103,9 @@ async def async_setup_entry(
                 name,
                 wattage,
             )
-            powerentities.append(VirtualPowerSensorAlwaysOn(hass, name, wattage))
+            powerentities.append(
+                VirtualPowerSensorAlwaysOn(hass, name, wattage, profile_key)
+            )
             continue
 
         entity_id = profile.get("entity_id")
@@ -110,7 +119,9 @@ async def async_setup_entry(
             entity_id,
             wattage,
         )
-        powerentities.append(VirtualPowerSensor(hass, entity_id, wattage, name))
+        powerentities.append(
+            VirtualPowerSensor(hass, entity_id, wattage, name, profile_key)
+        )
 
     async_add_entities(powerentities)
     async_add_entities([TotalEnergySensor(hass)])

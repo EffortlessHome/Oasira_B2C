@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pylintrc
+.pytest_cache/
+.mypy_cache/
+*build/
+*dist/
+*.egg-info/
+*.spec
+.venv
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/

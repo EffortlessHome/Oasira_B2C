@@ -13,6 +13,16 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, NAME
 
+
+def _sanitize_unique_id(value: str) -> str:
+    """Normalize a string for unique ID usage."""
+    return "_".join(
+        filter(None, [
+            char if char.isalnum() or char == "_" else "_"
+            for char in value.lower()
+        ])
+    ).strip("_")
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -41,6 +51,7 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
         entity_id: str,
         watts: float,
         profile_name: str | None = None,
+        profile_key: str | None = None,
     ):
         self.hass = hass
         self._entity_id = entity_id
@@ -48,9 +59,9 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
         self._attr_device_class = SensorDeviceClass.POWER
 
         name = profile_name or entity_id.split(".")[-1]
-        safe_name = name.lower().replace(" ", "_")
+        unique_source = profile_key or entity_id
         self._attr_name = f"{name}_virtual_power"
-        self._attr_unique_id = f"virtual_power_{safe_name}"
+        self._attr_unique_id = f"virtual_power_{_sanitize_unique_id(unique_source)}"
         self._state = 0.0  # Default power usage in watts
         self._watts = float(watts)
 
@@ -163,12 +174,19 @@ class VirtualPowerSensorAlwaysOn(SensorEntity, RestoreEntity):
     _attr_state_class = "measurement"
     _attr_device_class = SensorDeviceClass.POWER
 
-    def __init__(self, hass: HomeAssistant, entity_id: str, watts: float):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entity_id: str,
+        watts: float,
+        profile_key: str | None = None,
+    ):
         self.hass = hass
         self._entity_id = entity_id
+        unique_source = profile_key or entity_id
         safe_name = entity_id.lower().replace(" ", "_")
         self._attr_name = f"{entity_id}_virtual_power"
-        self._attr_unique_id = f"virtual_power_{safe_name}"
+        self._attr_unique_id = f"virtual_power_{_sanitize_unique_id(unique_source)}"
         self._state = float(watts)
         self._watts = float(watts)
 
@@ -236,7 +254,7 @@ class FakeDeviceVirtualPowerSensor(SensorEntity, RestoreEntity):
         entity_id = f"sensor.{device_type.lower().replace(' ', '_')}_power"
         self._entity_id = entity_id
         self._attr_name = f"{entity_id}_virtual_power"
-        self._attr_unique_id = f"virtual_power_{entity_id}"
+        self._attr_unique_id = f"virtual_power_{_sanitize_unique_id(entity_id)}"
         self._state = None
 
     @property

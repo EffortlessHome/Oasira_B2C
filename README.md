@@ -67,3 +67,82 @@ Python dependencies are declared in custom_components/oasira_b2c/manifest.json a
 - Documentation: https://www.oasira.ai/
 - Issues: https://github.com/EffortlessHome/Oasira_B2C/issues
 
+## Configuration
+
+### Initial Setup
+
+1. After installation, go to Configuration > Integrations
+2. Click the "+" button and search for "Oasira"
+3. Enter your Oasira account credentials
+4. Select the system you want to configure (if you have multiple systems)
+
+### Configuration.yaml changes
+
+Add the following configuration to your Home Assistant configuration.yaml file:
+
+```yaml
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 192.168.1.0/24 #(replace with your local network range)
+
+homeassistant:
+  allowlist_external_dirs:
+    - /media
+    - /config/www/oasira
+
+panel_custom:
+  - name: Oasira-config-panel
+    sidebar_title: Oasira Config
+    sidebar_icon: mdi:alpha-e-box-outline
+    url_path: Oasira-config-panel
+    module_url: /local/Oasira/config-panel.js
+
+  - name: Oasira-area-panel
+    url_path: Oasira-area-panel
+    module_url: /local/Oasira/area-panel.js
+
+  - name: Oasira-label-panel
+    url_path: Oasira-label-panel
+    module_url: /local/Oasira/label-panel.js
+```
+
+After adding the configuration, restart Home Assistant for changes to take effect.
+
+### Required Information
+
+- **Email**: Your Oasira account email
+- **Password**: Your Oasira account password
+
+### Requirements
+
+- Home Assistant **2024.1+**
+- `recorder` component enabled
+- Internet connection for cloud features
+
+---
+
+## 🏗️ Architecture: Local-First by Design
+
+```
+┌─────────────────────────────────────┐
+│           Your Home Network         │
+│                                     │
+│  ┌──────────────┐  ┌────────────┐  │
+│  │Home Assistant │──│Oasira│ │
+│  │   (local)     │  │ (local)    │  │
+│  └──────┬───────┘  └─────┬──────┘  │
+│         │                │         │
+│    Local Automations    Local UI    │
+│    Local Security       Local Data  │
+└─────────┬────────────────┬─────────┘
+          │   Encrypted    │
+          └───── Cloud ────┘
+        (remote access only)
+```
+
+✅ All automations run **locally** — no cloud dependency
+✅ Your data **stays on your hardware**
+✅ Cloud used **only** for secure remote access & optional monitoring
+
+

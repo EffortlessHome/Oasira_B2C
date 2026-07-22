@@ -207,6 +207,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_EMAIL: self._email,
                         CONF_FIREBASE_UID: self._firebase_uid,
                         CONF_ID_TOKEN: self._id_token,
+                        CONF_REFRESH_TOKEN: self._refresh_token,
                         CONF_CUSTOMER_ID: self._customer_id,
                         CONF_SYSTEM_ID: self._system_id,
                     },
@@ -241,26 +242,29 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             Dictionary with firebase_uid and id_token, or None if authentication fails
         """
         try:
-            async with OasiraAPIClient() as client:
-                data = await client.firebase_sign_in(email, password)
+            async def _authenticate() -> dict[str, Any]:
+                async with OasiraAPIClient() as client:
+                    return await client.firebase_sign_in(email, password)
 
-                # Validate that we got the required tokens
-                firebase_uid = data.get("localId")
-                id_token = data.get("idToken")
-                refresh_token = data.get("refreshToken")
+            data = await _authenticate()
 
-                if not firebase_uid or not id_token:
-                    _LOGGER.error(
-                        "Firebase auth response missing required fields. Response: %s",
-                        data,
-                    )
-                    return None
+            # Validate that we got the required tokens
+            firebase_uid = data.get("localId")
+            id_token = data.get("idToken")
+            refresh_token = data.get("refreshToken")
 
-                return {
-                    "firebase_uid": firebase_uid,
-                    "id_token": id_token,
-                    "refresh_token": refresh_token,
-                }
+            if not firebase_uid or not id_token:
+                _LOGGER.error(
+                    "Firebase auth response missing required fields. Response: %s",
+                    data,
+                )
+                return None
+
+            return {
+                "firebase_uid": firebase_uid,
+                "id_token": id_token,
+                "refresh_token": refresh_token,
+            }
         except OasiraAPIError as err:
             _LOGGER.error("Firebase auth error: %s", err)
             return None
@@ -284,10 +288,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             raise OasiraAPIError("Authentication token is missing")
 
         try:
-            async with OasiraAPIClient(id_token=self._id_token) as client:
-                systems = await client.get_system_list_by_email(email)
-                _LOGGER.info("Found %d system(s) for email %s", len(systems), email)
-                return systems
+            async def _fetch_systems() -> list[dict[str, Any]]:
+                async with OasiraAPIClient(id_token=self._id_token) as client:
+                    return await client.get_system_list_by_email(email)
+
+            systems = await _fetch_systems()
+            _LOGGER.info("Found %d system(s) for email %s", len(systems), email)
+            return systems
         except OasiraAPIError as err:
             _LOGGER.exception("Failed to fetch system list: %s", err)
             raise
@@ -297,7 +304,58 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, user_input=None):
         """Handle reauth - re-enter credentials."""
-        return await self.async_step_user(user_input)
+        errors = {}
+
+        entry = None
+        if self.context.get("entry_id") and hasattr(self, "hass"):
+            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+
+        if user_input is not None:
+            email = user_input.get(CONF_EMAIL)
+            password = user_input.get(CONF_PASSWORD)
+
+            if not email or not password:
+                errors["base"] = "missing_fields"
+            else:
+                try:
+                    auth_result = await self._authenticate_firebase(email, password)
+                    if auth_result:
+                        if entry is not None:
+                            new_data = {
+                                **entry.data,
+                                CONF_EMAIL: email,
+                                CONF_FIREBASE_UID: auth_result["firebase_uid"],
+                                CONF_ID_TOKEN: auth_result["id_token"],
+                                CONF_REFRESH_TOKEN: auth_result["refresh_token"],
+                            }
+                            self.hass.config_entries.async_update_entry(
+                                entry, data=new_data
+                            )
+                        return self.async_abort(reason="reauth_successful")
+                    errors["base"] = "invalid_auth"
+                except Exception as err:
+                    _LOGGER.exception("Unexpected error during reauth: %s", err)
+                    errors["base"] = "unknown"
+
+        default_email = ""
+        if entry is not None:
+            default_email = entry.data.get(CONF_EMAIL, "")
+
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_EMAIL, default=default_email): str,
+                vol.Required(CONF_PASSWORD): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="reauth",
+            data_schema=data_schema,
+            errors=errors,
+            description_placeholders={
+                "info": "Enter your Oasira account credentials to reauthenticate."
+            },
+        )
 
     @staticmethod
     @callback

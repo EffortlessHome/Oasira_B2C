@@ -1,6 +1,9 @@
 """Authentication helper for handling Firebase token refresh across all API calls."""
 
+import base64
+import json
 import logging
+import time
 from typing import Any, Callable, Coroutine, TypeVar, Awaitable
 from functools import wraps
 
@@ -79,13 +82,55 @@ async def _refresh_id_token(hass) -> bool:
 
         _LOGGER.info("✅ Firebase ID token refreshed successfully")
         return True
-
     except OasiraAPIError as e:
         _LOGGER.error("Failed to refresh Firebase token: %s", e)
         return False
     except Exception as e:
         _LOGGER.exception("Unexpected error refreshing Firebase token: %s", e)
         return False
+
+
+def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
+    """Decode a JWT payload without validating its signature."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        payload = parts[1]
+        padding = "=" * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload + padding)
+        return json.loads(decoded)
+    except Exception:
+        return None
+
+
+def _is_token_expired(token: str, threshold: int = 60) -> bool:
+    """Check whether a JWT token is expired or about to expire."""
+    payload = _decode_jwt_payload(token)
+    exp = payload.get("exp") if payload else None
+    if not isinstance(exp, (int, float)):
+        return True
+    return time.time() >= exp - threshold
+
+
+async def ensure_valid_id_token(hass) -> bool:
+    """Ensure the current ID token is valid, refreshing it if necessary."""
+    current_token = hass.data.get(DOMAIN, {}).get("id_token")
+    if current_token and not _is_token_expired(current_token):
+        return True
+    return await _refresh_id_token(hass)
+
+
+async def get_valid_id_token(hass) -> str | None:
+    """Return a valid ID token after refreshing it if needed."""
+    if await ensure_valid_id_token(hass):
+        return hass.data.get(DOMAIN, {}).get("id_token")
+    return None
+
+
+async def refresh_firebase_id_token(hass) -> bool:
+    """Refresh the Firebase ID token and persist updated credentials."""
+    return await _refresh_id_token(hass)
 
 
 def with_token_refresh(

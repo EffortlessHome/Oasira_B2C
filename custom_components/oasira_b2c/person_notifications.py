@@ -11,6 +11,7 @@ from google.auth.crypt import rsa
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import storage
 
+from .auth_helper import ensure_valid_id_token, safe_api_call
 from .const import DOMAIN
 from .oasiranotificationdevice import oasiranotificationdevice
 
@@ -251,15 +252,21 @@ async def _get_firebase_access_token(
 ) -> tuple[str | None, str | None]:
     """Get a valid Firebase access token for sending FCM messages."""
     try:
-        from oasira import OasiraAPIClient, OasiraAPIError
-        import time
-        id_token = hass.data.get(DOMAIN, {}).get("id_token")
-        if not id_token:
-            _LOGGER.error("Missing id_token for Firebase access")
+        if not await ensure_valid_id_token(hass):
+            _LOGGER.error("Missing or invalid id_token for Firebase access")
             return None, None
 
-        async with OasiraAPIClient(id_token=id_token) as client:
-            firebase_config = await client.get_firebase_config()
+        from oasira import OasiraAPIClient, OasiraAPIError
+        import time
+
+        async def _fetch_config() -> dict[str, Any]:
+            id_token = hass.data.get(DOMAIN, {}).get("id_token")
+            if not id_token:
+                raise OasiraAPIError("Missing id_token for Firebase access")
+            async with OasiraAPIClient(id_token=id_token) as client:
+                return await client.get_firebase_config()
+
+        firebase_config = await safe_api_call(hass, _fetch_config)
 
         google_firebase_raw = (
             firebase_config.get("Google_Firebase") if firebase_config else None
@@ -267,7 +274,7 @@ async def _get_firebase_access_token(
         if not google_firebase_raw:
             _LOGGER.error("Missing Google_Firebase config from Oasira")
             return None, None
-
+        
         service_account_info = json.loads(google_firebase_raw)
         private_key = service_account_info["private_key"]
         client_email = service_account_info["client_email"]

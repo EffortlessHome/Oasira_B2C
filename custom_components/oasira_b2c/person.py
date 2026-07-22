@@ -18,7 +18,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from oasira import OasiraAPIClient, OasiraAPIError
 from .const import DOMAIN, NAME, ATTR_LATITUDE, ATTR_LONGITUDE
 from .notificationdevice import Oasiranotificationdevice
-from .auth_helper import safe_api_call
+from .auth_helper import ensure_valid_id_token, safe_api_call
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -397,12 +397,18 @@ class eh_person(SensorEntity, RestoreEntity):
         """Generate a Firebase access token using service account JSON (async + HA safe)."""
 
         try:
-            # ---- Fetch service account JSON using API client ----
-            # Get the id_token from hass.data for authentication
-            id_token = self.hass.data[DOMAIN].get("id_token") if self.hass else None
+            if not await ensure_valid_id_token(self.hass):
+                _LOGGER.error("Missing or invalid id_token for Firebase access")
+                return None
 
-            async with OasiraAPIClient(id_token=id_token) as client:
-                firebase_config = await client.get_firebase_config()
+            async def _fetch_config() -> dict[str, Any]:
+                id_token = self.hass.data[DOMAIN].get("id_token") if self.hass else None
+                if not id_token:
+                    raise OasiraAPIError("Missing id_token for Firebase access")
+                async with OasiraAPIClient(id_token=id_token) as client:
+                    return await client.get_firebase_config()
+
+            firebase_config = await safe_api_call(self.hass, _fetch_config)
 
             google_firebase_raw = firebase_config.get("Google_Firebase")
             if not google_firebase_raw:
