@@ -394,7 +394,7 @@ class OasiraNotificationService(BaseNotificationService):
             return None, None
 
 
-    async def _resolve_image_url(
+    def _resolve_image_url(
         self, image_url: str | None, full_url: bool = True
     ) -> str | None:
         if not image_url:
@@ -416,21 +416,17 @@ class OasiraNotificationService(BaseNotificationService):
             encoded_path = f"{quote(base_path, safe='/')}?{query}"
             path_with_buster = f"{encoded_path}&{cache_buster}"
         else:
-            """Handle notify.Oasira service calls."""
-            message = call.data.get("message", "")
-            title = call.data.get("title")
-            data = call.data.get("data")
+            encoded_path = quote(clean_path, safe="/")
+            path_with_buster = f"{encoded_path}?{cache_buster}"
 
-            kwargs = {}
-            if title is not None:
-                kwargs[ATTR_TITLE] = title
-            if data is not None:
-                kwargs[ATTR_DATA] = data
+        if full_url:
+            ha_url = self.hass.data.get(DOMAIN, {}).get("ha_url", "")
+            if ha_url:
+                # Ensure no double slashes when joining
+                return f"{ha_url.rstrip('/')}/{path_with_buster}"
 
-            await service.async_send_message(message=message, **kwargs)
-
-
-        return True
+        # Return as absolute path for local use (e.g. persistent notifications)
+        return f"/{path_with_buster}"
 
     #except Exception as e:
     #    _LOGGER.error(f"Failed to setup notification platform: {e}", exc_info=True)
