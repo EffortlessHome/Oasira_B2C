@@ -335,6 +335,65 @@ class OasiraNotificationService(BaseNotificationService):
             except Exception as exc:
                 _LOGGER.error("FCM push error: %s", exc)
 
+    async def _get_firebase_access_token(self) -> tuple[str | None, str | None]:
+        try:
+            id_token = self.hass.data.get(DOMAIN, {}).get("id_token")
+            if not id_token:
+                _LOGGER.error("Missing id_token for Firebase access")
+                return None, None
+
+            async with OasiraAPIClient(id_token=id_token) as client:
+                firebase_config = await client.get_firebase_config()
+
+            google_firebase_raw = (
+                firebase_config.get("Google_Firebase") if firebase_config else None
+            )
+            if not google_firebase_raw:
+                _LOGGER.error("Missing Google_Firebase config from Oasira")
+                return None, None
+
+            service_account_info = json.loads(google_firebase_raw)
+            private_key = service_account_info["private_key"]
+            client_email = service_account_info["client_email"]
+            project_id = service_account_info.get("project_id")
+            if not project_id:
+                _LOGGER.error("Missing project_id in Firebase service account")
+                return None, None
+
+            now = int(time.time())
+            payload = {
+                "iss": client_email,
+                "scope": FIREBASE_SCOPE,
+                "aud": GOOGLE_OAUTH_URL,
+                "iat": now,
+                "exp": now + 3600,
+            }
+
+            signer = rsa.RSASigner.from_string(private_key)
+            assertion = jwt.encode(signer, payload)
+
+            session = async_get_clientsession(self.hass)
+            async with session.post(
+                GOOGLE_OAUTH_URL,
+                data={
+                    "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                    "assertion": assertion,
+                },
+            ) as resp:
+                result = await resp.json()
+                if "access_token" not in result:
+                    _LOGGER.error("Firebase OAuth error: %s", result)
+                    return None, None
+
+                return result["access_token"], project_id
+        except OasiraAPIError as exc:
+            _LOGGER.error("Failed to fetch Firebase config: %s", exc)
+            return None, None
+        except Exception as exc:
+            _LOGGER.exception("Failed to refresh Firebase access token: %s", exc)
+            return None, None
+
+
     async def _resolve_image_url(
         self, image_url: str | None, full_url: bool = True
     ) -> str | None:
