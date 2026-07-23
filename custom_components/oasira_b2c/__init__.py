@@ -370,23 +370,7 @@ class OasiraNotificationService(BaseNotificationService):
 
             await service.async_send_message(message=message, **kwargs)
 
-        # Register the notification service
-        hass.services.async_register(
-            "notify",
-            "Oasira",
-            handle_notify_service,
-            schema=vol.Schema(
-                {
-                    vol.Required("message"): cv.string,
-                    vol.Optional("title"): cv.string,
-                    vol.Optional("data"): dict,
-                }
-            ),
-        )
 
-        _LOGGER.info(
-            "✅ Oasira notification service registered: notify.Oasira"
-        )
         return True
 
     #except Exception as e:
@@ -863,6 +847,8 @@ def register_services(hass: HomeAssistant) -> None:
         ),
     )
 
+ 
+
     hass.services.async_register(
         DOMAIN,
         "remove_person_notification_device",
@@ -915,6 +901,47 @@ def register_services(hass: HomeAssistant) -> None:
         ),
     )
 
+async def async_setup_notification_platform(hass: HomeAssistant):
+    """Set up the EffortlessHome notification platform."""
+    try:
+        service = OasiraNotificationService(hass)
+
+        async def handle_notify_service(call: ServiceCall) -> None:
+            """Handle notify.effortlesshome service calls."""
+            message = call.data.get("message", "")
+            title = call.data.get("title")
+            data = call.data.get("data")
+
+            kwargs = {}
+            if title is not None:
+                kwargs[ATTR_TITLE] = title
+            if data is not None:
+                kwargs[ATTR_DATA] = data
+
+            await service.async_send_message(message=message, **kwargs)
+
+        # Register the notification service
+        hass.services.async_register(
+            "notify",
+            "effortlesshome",
+            handle_notify_service,
+            schema=vol.Schema(
+                {
+                    vol.Required("message"): cv.string,
+                    vol.Optional("title"): cv.string,
+                    vol.Optional("data"): dict,
+                }
+            ),
+        )
+
+        _LOGGER.info(
+            "✅ EffortlessHome notification service registered: notify.effortlesshome"
+        )
+        return True
+
+    except Exception as e:
+        _LOGGER.error(f"Failed to setup notification platform: {e}", exc_info=True)
+        return False
 
 def _build_virtual_profile_key(entity_id: str | None, name: str | None, always_on: bool) -> str:
     """Build a stable key for a virtual power profile."""
