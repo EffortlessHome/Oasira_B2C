@@ -902,12 +902,12 @@ def register_services(hass: HomeAssistant) -> None:
     )
 
 async def async_setup_notification_platform(hass: HomeAssistant):
-    """Set up the EffortlessHome notification platform."""
+    """Set up the oasira notification platform."""
     try:
         service = OasiraNotificationService(hass)
 
         async def handle_notify_service(call: ServiceCall) -> None:
-            """Handle notify.effortlesshome service calls."""
+            """Handle notify.oasira service calls."""
             message = call.data.get("message", "")
             title = call.data.get("title")
             data = call.data.get("data")
@@ -923,7 +923,7 @@ async def async_setup_notification_platform(hass: HomeAssistant):
         # Register the notification service
         hass.services.async_register(
             "notify",
-            "effortlesshome",
+            "oasira",
             handle_notify_service,
             schema=vol.Schema(
                 {
@@ -935,7 +935,7 @@ async def async_setup_notification_platform(hass: HomeAssistant):
         )
 
         _LOGGER.info(
-            "✅ EffortlessHome notification service registered: notify.effortlesshome"
+            "✅ oasira notification service registered: notify.oasira"
         )
         return True
 
