@@ -558,7 +558,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     # Register custom notification platform
-    #await async_setup_notification_platform(hass)
+    await async_setup_notification_platform(hass)
 
     # Unregister if already registered
     webhook.async_unregister(hass, "oasira_push_token")
