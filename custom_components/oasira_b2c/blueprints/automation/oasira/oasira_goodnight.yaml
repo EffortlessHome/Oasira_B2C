@@ -35,7 +35,7 @@ blueprint:
     securityalarm:
       name: Security Alarm
       description: The security alarm to arm in night/home mode
-      default: alarm_control_panel.Oasira
+      default: alarm_control_panel.oasira_security_alarm
       selector:
         entity:
           filter:

@@ -26,7 +26,7 @@ blueprint:
         action: {}
 trigger:
   - platform: state
-    entity_id: alarm_control_panel.Oasira
+    entity_id: alarm_control_panel.oasira_security_alarm
     to: "triggered"
 action:
   - service: notify.oasira
@@ -38,7 +38,7 @@ action:
     continue_on_error: true
     wait_for_trigger:
       - platform: state
-        entity_id: alarm_control_panel.Oasira
+        entity_id: alarm_control_panel.oasira_security_alarm
         from: "pending"
         to: "active"
     timeout:
@@ -46,14 +46,16 @@ action:
   - choose:
       - conditions: "{{ wait.trigger is not none }}"
         sequence:
-          - action: oasira_b2c.confirmpendingalarmservice
+          - action: oasira_b2c.confirm_pending_alarm 
             continue_on_error: true
-            data: {}
+            data:
+              entity_id: alarm_control_panel.oasira_security_alarm
 
     default: # If timeout occurs
       - sequence:
-          - action: oasira_b2c.confirmpendingalarmservice
-            data: {}
+          - action: oasira_b2c.confirm_pending_alarm 
+            data:
+              entity_id: alarm_control_panel.oasira_security_alarm
 
   - choose: []
     continue_on_error: true

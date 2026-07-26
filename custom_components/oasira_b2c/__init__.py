@@ -1298,13 +1298,6 @@ async def confirm_pending_alarm(call: ServiceCall) -> None:
     hass = HASSComponent.get_hass()
     return await async_confirmpendingalarm(hass)
 
-
-# Keep old name for backward compatibility
-async def confirmpendingalarm(calldata) -> None:
-    """Confirm pending alarm (deprecated name)."""
-    await confirm_pending_alarm(calldata)
-
-
 def _clean_motion_files_sync(hass, age):
     """Synchronous helper to delete old snapshots."""
     snapshots_dir = "/media/snapshots"

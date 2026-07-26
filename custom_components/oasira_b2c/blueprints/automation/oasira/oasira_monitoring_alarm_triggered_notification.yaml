@@ -61,7 +61,7 @@ action:
   - choose:
       - conditions: "{{ wait.trigger.event.data.action == action_confirm }}"
         sequence:
-          - action: oasira_b2c.confirmpendingalarmservice
+          - action: oasira_b2c.confirm_pending_alarm 
             continue_on_error: true
             data: {}
 
@@ -80,7 +80,7 @@ action:
 
     default: # If timeout occurs
       - sequence:
-          - action: oasira_b2c.confirmpendingalarmservice
+          - action: oasira_b2c.confirm_pending_alarm 
             data: {}
 
   - choose: []
