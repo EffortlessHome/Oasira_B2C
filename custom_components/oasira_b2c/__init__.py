@@ -235,11 +235,18 @@ class OasiraNotificationService(BaseNotificationService):
         if manager is None:
             raise HomeAssistantError("PersonNotificationManager not initialized")
 
-        tokens = manager.get_all_device_tokens()
+        tokens = []
+        # Iterate through all devices managed by the PersonNotificationManager
+        for person_devices in manager._devices_by_person.values():
+            for device in person_devices:
+                if hasattr(device, 'token') and device.token:
+                    tokens.append(device.token)
+
         if not tokens:
             _LOGGER.warning("No registered notification tokens found via PersonNotificationManager")
             return
-       # return tokens
+        #return tokens
+ 
 
         access_token, project_id = await self._get_firebase_access_token()
         if not access_token or not project_id:
