@@ -231,10 +231,15 @@ class OasiraNotificationService(BaseNotificationService):
     async def _send_fcm_notification(
         self, message: str, title: str, data: dict
     ) -> None:
-        tokens = self.hass.data.get(DOMAIN, {}).get("notification_tokens", [])
+        manager = self.hass.data.get(DOMAIN, {}).get("person_notification_manager")
+        if manager is None:
+            raise HomeAssistantError("PersonNotificationManager not initialized")
+
+        tokens = manager.get_all_device_tokens()
         if not tokens:
-            _LOGGER.warning("No registered notification tokens")
+            _LOGGER.warning("No registered notification tokens found via PersonNotificationManager")
             return
+       # return tokens
 
         access_token, project_id = await self._get_firebase_access_token()
         if not access_token or not project_id:
