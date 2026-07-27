@@ -169,11 +169,15 @@ async def send_notification_to_person(
         return False
 
     devices = manager.get_devices_for_person(person_email)
-    if not devices:
-        _LOGGER.warning("No notification devices registered for %s", person_email)
+    
+    # Filter out devices without valid tokens
+    valid_devices = [dev for dev in devices if dev.DeviceToken and dev.DeviceToken.strip()]
+    
+    if not valid_devices:
+        _LOGGER.warning("No notification tokens found for %s", person_email)
         return False
 
-    tokens = [dev.DeviceToken for dev in devices]
+    tokens = [dev.DeviceToken for dev in valid_devices]
     _LOGGER.debug("Sending notification to %s on %d devices", person_email, len(tokens))
 
     domain_data = hass.data.get(DOMAIN, {})
