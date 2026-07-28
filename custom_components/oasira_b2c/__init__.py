@@ -229,123 +229,114 @@ class OasiraNotificationService(BaseNotificationService):
         return "\n".join(lines)
 
     async def _send_fcm_notification(
-        self, message: str, title: str, data: dict
-    ) -> None:
-        manager = self.hass.data.get(DOMAIN, {}).get("person_notification_manager")
-        if manager is None:
-            raise HomeAssistantError("PersonNotificationManager not initialized")
+           self, message: str, title: str, data: dict
+       ) -> None:
+           """Send a notification message to all registered devices."""
+           _LOGGER.info("--- Starting FCM push process for title: %s, message: %s ---", title, message)
+           manager = self.hass.data.get(DOMAIN, {}).get("person_notification_manager")
+           if manager is None:
+               _LOGGER.error("FCM Push Failure: PersonNotificationManager not initialized.")
+               raise HomeAssistantError("PersonNotificationManager not initialized")
 
-        tokens = []
-        # Iterate through all devices managed by the PersonNotificationManager
-        for person_devices in manager._devices_by_person.values():
-            for device in person_devices:
-                if hasattr(device, 'token') and device.token:
-                    tokens.append(device.token)
+           _LOGGER.info("Attempting to collect tokens from PersonNotificationManager...")
+           tokens = set()
+           # Iterate through all devices managed by the PersonNotificationManager
+           for person_devices in manager._devices_by_person.values():
+               for device in person_devices:
+                   if hasattr(device, 'token') and device.token:
+                       tokens.add(device.token)
 
-        if not tokens:
-            _LOGGER.warning("No registered notification tokens found via PersonNotificationManager")
-            return
-        #return tokens
- 
+           if not tokens:
+               _LOGGER.warning("FCM Push Failure: No registered notification tokens found via PersonNotificationManager. ")
+               return
 
-        access_token, project_id = await self._get_firebase_access_token()
-        if not access_token or not project_id:
-            _LOGGER.error("Unable to get Firebase access token")
-            return
+           tokens = list(tokens)
+           _LOGGER.info("FCM Push Success: Collected %d unique notification tokens. Starting broadcast loop.", len(tokens))
 
-        fcm_url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
-        _LOGGER.info("[Oasira] Using FCM project: %s", project_id)
+           try:
+               _LOGGER.info("Fetching Firebase access token and project ID...")
+               access_token, project_id = await self._get_firebase_access_token()
+               if not access_token or not project_id:
+                   _LOGGER.error("FCM Push Failure: Unable to get Firebase access token or project ID.")
+                   return
 
-        session = async_get_clientsession(self.hass)
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        }
+               _LOGGER.info("Successfully retrieved Firebase credentials. Using project: %s", project_id)
+               fcm_url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+               _LOGGER.debug("Using FCM API endpoint: %s", fcm_url)
 
-        image_url = None
-        payload_data = None
-        if data:
-            payload_data = {}
-            for k, v in data.items():
-                key_str = str(k)
-                value_str = str(v)
-                if key_str in {"image", "image_url", "photo", "photo_url"}:
-                    resolved = self._resolve_image_url(value_str, full_url=True)
-                    if resolved:
-                        value_str = resolved
-                        if not image_url:
-                            image_url = resolved
-                payload_data[key_str] = value_str
+               session = async_get_clientsession(self.hass)
+               headers = {
+                   "Authorization": f"Bearer {access_token}",
+                   "Content-Type": "application/json",
+               }
 
-        for token in tokens:
-            payload = {
-                "message": {
-                    "token": token,
-                    "notification": {"title": title, "body": message},
-                }
-            }
-            if payload_data:
-                payload["message"]["data"] = payload_data
+               failed_count = 0
+               _LOGGER.info("Starting notification loop over %d tokens.", len(tokens))
 
-            if image_url:
-                # Enhanced image handling for better native notification support
-                payload["message"]["notification"]["image"] = image_url
-                payload["message"]["android"] = {
-                    "notification": {
-                        "image": image_url,
-                        "icon": "ic_stat_ic_notification",
-                        "color": "#007bff",
-                    }
-                }
-                payload["message"]["apns"] = {
-                    "payload": {
-                        "aps": {
-                            "alert": {"title": title, "body": message},
-                            "mutable-content": 1,
-                        },
-                        "image_url": image_url,
-                    }
-                }
-                # Add webpush for web notifications
-                payload["message"]["webpush"] = {
-                    "notification": {
-                        "image": image_url,
-                        "icon": "/local/Oasira/user.png",
-                    }
-                }
+               for i, token in enumerate(tokens):
+                   _LOGGER.debug("--- Processing token %d/%d (Token: %s[:10]...) ---", i + 1, len(tokens), token[:10])
+                   payload = {
+                       "message": {
+                           "token": token,
+                           "notification": {"title": title, "body": message},
+                       }
+                   }
+                   if data:
+                       payload_data = {}
+                       for k, v in data.items():
+                           key_str = str(k)
+                           value_str = str(v)
+                           payload_data[key_str] = value_str
+                       payload["message"]["data"] = payload_data
 
-            try:
-                async with session.post(fcm_url, headers=headers, json=payload) as resp:
-                    if resp.status != 200:
-                        text = await resp.text()
-                        _LOGGER.error("FCM push failed: %s", text)
-                        # Check for UNREGISTERED token and remove it
-                        try:
-                            error_data = json.loads(text)
-                            if (
-                                error_data.get("error", {}).get("details") and
-                                any(
-                                    detail.get("errorCode") == "UNREGISTERED"
-                                    for detail in error_data["error"]["details"]
-                                    if detail.get("@type") == "type.googleapis.com/google.firebase.fcm.v1.FcmError"
-                                )
-                            ):
-                                _LOGGER.warning("Removing unregistered FCM token: %s", token[:20] + "...")
-                                domain_data = self.hass.data.get(DOMAIN, {})
-                                tokens_list = domain_data.get("notification_tokens", [])
-                                if token in tokens_list:
-                                    tokens_list.remove(token)
-                                    token_store = domain_data.get("token_store")
-                                    if token_store is not None:
-                                        await token_store.async_save(tokens_list)
-                        except json.JSONDecodeError:
-                            pass  # Not JSON, ignore
-                    else:
-                        _LOGGER.info(
-                            "FCM push successful for token: %s", token[:20] + "..."
-                        )
-            except Exception as exc:
-                _LOGGER.error("FCM push error: %s", exc)
+                   _LOGGER.debug("Sending payload to FCM for token %s...", token[:10])
+
+                   try:
+                       async with session.post(fcm_url, headers=headers, json=payload) as resp:
+                           status_code = resp.status
+                           text = await resp.text()
+
+                           if status_code != 200:
+                               _LOGGER.error("FCM Push failed for token %s. Status: %d. Response: %s", token[:10], status_code, text)
+                               failed_count += 1
+                               try:
+                                   error_data = json.loads(text)
+                                   # Check for UNREGISTERED token
+                                   if (
+                                       error_data.get("error", {}).get("details") and
+                                       any(
+                                           detail.get("errorCode") == "UNREGISTERED"
+                                           for detail in error_data["error"]["details"]
+                                           if detail.get("@type") == "type.googleapis.com/google.firebase.fcm.v1.FcmError"
+                                       )
+                                   ):
+                                       _LOGGER.warning("Token %s is UNREGISTERED. Flagging for removal.", token[:10])
+                                       # Token removal logic (if token is unregistered, remove it from stored list)
+                                       domain_data = self.hass.data.get(DOMAIN, {})
+                                       tokens_list = domain_data.get("notification_tokens", [])
+                                       if token in tokens_list:
+                                           tokens_list.remove(token)
+                                           token_store = domain_data.get("token_store")
+                                           if token_store is not None:
+                                               await token_store.async_save(tokens_list)
+                               except json.JSONDecodeError:
+                                   _LOGGER.debug("Could not parse error response from FCM.")
+                           else:
+                               _LOGGER.debug("FCM push successful for token %s.", token[:10])
+
+                   except Exception as e:
+                       _LOGGER.error("Failed to send FCM to device %s due to exception: %s", token[:10], e)
+                       failed_count += 1
+
+               _LOGGER.info("--- Notification Loop Summary ---")
+               if failed_count > 0:
+                   _LOGGER.warning("Completed FCM broadcast. %d/%d devices failed to receive the notification.", failed_count, len(tokens))
+               else:
+                   _LOGGER.info("Completed FCM broadcast. Successfully sent notification to all %d devices.", len(tokens))
+               return failed_count > 0
+           except Exception as e:
+               _LOGGER.critical("CRITICAL FCM Failure: Unexpected error during notification broadcast: %s", e, exc_info=True)
+               raise HomeAssistantError(f"Critical FCM Failure: {e}")
 
     async def _get_firebase_access_token(self) -> tuple[str | None, str | None]:
         try:
