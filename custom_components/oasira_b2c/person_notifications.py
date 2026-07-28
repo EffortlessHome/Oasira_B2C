@@ -24,8 +24,9 @@ PERSON_NOTIFICATION_DEVICES_VERSION = 1
 class PersonNotificationManager:
     """Manages notification devices for individual persons."""
 
-    def __init__(self, hass: HomeAssistant):
+    def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the manager."""
+        _LOGGER.info("Initializing PersonNotificationManager for HASS instance.")
         self.hass = hass
         self.store = storage.Store(
             hass,
@@ -33,14 +34,19 @@ class PersonNotificationManager:
             PERSON_NOTIFICATION_DEVICES_KEY,
         )
         self._devices_by_person: dict[str, list[oasiranotificationdevice]] = {}
+        _LOGGER.info("PersonNotificationManager initialized. Storage key: %s", PERSON_NOTIFICATION_DEVICES_KEY)
 
     async def async_load(self) -> None:
         """Load person-device mappings from storage."""
+        _LOGGER.info("Attempting to load person-device mappings from storage.")
         try:
             data = await self.store.async_load() or {}
             self._devices_by_person = {}
 
+            _LOGGER.debug("Raw data loaded: %s", len(data))
+
             for email, device_list in data.items():
+                _LOGGER.debug("Processing data for person email: %s", email)
                 if isinstance(device_list, list):
                     self._devices_by_person[email] = [
                         oasiranotificationdevice.from_dict(
@@ -49,28 +55,31 @@ class PersonNotificationManager:
                         for dev in device_list
                         if isinstance(dev, (dict, str))
                     ]
+                    _LOGGER.info("Successfully loaded %d devices for person %s.", len(self._devices_by_person[email]), email)
 
-            _LOGGER.debug(
-                "Loaded person-device mappings for %d people", len(self._devices_by_person)
-            )
+            _LOGGER.info("Finished loading person-device mappings. Total persons loaded: %d", len(self._devices_by_person))
         except Exception as e:
             _LOGGER.error("Failed to load person notification devices: %s", e)
             self._devices_by_person = {}
 
     async def async_save(self) -> None:
         """Persist person-device mappings to storage."""
+        _LOGGER.info("Attempting to save person-device mappings to storage.")
         try:
             data = {
                 email: [dev.to_dict() for dev in devices]
                 for email, devices in self._devices_by_person.items()
             }
             await self.store.async_save(data)
+            _LOGGER.info("Successfully saved person-device mappings. Total persons saved: %d", len(data))
         except Exception as e:
             _LOGGER.error("Failed to save person notification devices: %s", e)
 
     def get_devices_for_person(self, email: str) -> list[oasiranotificationdevice]:
         """Get all notification devices for a person."""
-        return list(self._devices_by_person.get(email, []))
+        devices = self._devices_by_person.get(email, [])
+        _LOGGER.info("Requesting devices for person %s. Found %d devices.", email, len(devices))
+        return list(devices)
 
     async def add_device_to_person(
         self,
@@ -80,24 +89,22 @@ class PersonNotificationManager:
         platform: str,
     ) -> bool:
         """Add a notification device to a person."""
+        _LOGGER.info("Attempting to add device '%s' (%s) with token %s for person %s.", device_name, platform, token[:10] + "...", email)
         if not email or not token or not device_name or not platform:
-            _LOGGER.error(
-                "Missing required fields: email=%s, token=%s, device_name=%s, platform=%s",
-                bool(email),
-                bool(token),
-                bool(device_name),
-                bool(platform),
-            )
+            _LOGGER.error("Missing required fields during device addition. Email=%s, Token=%s, Name=%s, Platform=%s",
+                bool(email), bool(token), bool(device_name), bool(platform))
             return False
 
         if email not in self._devices_by_person:
             self._devices_by_person[email] = []
+            _LOGGER.info("Person %s found for the first time in device mappings.", email)
 
         devices = self._devices_by_person[email]
         existing_idx = None
         for idx, dev in enumerate(devices):
             if dev.DeviceToken == token:
                 existing_idx = idx
+                _LOGGER.info("Device with token %s found for %s. Updating existing entry.", token[:10] + "...", email)
                 break
 
         device = oasiranotificationdevice(
@@ -109,18 +116,19 @@ class PersonNotificationManager:
 
         if existing_idx is not None:
             devices[existing_idx] = device
-            _LOGGER.info("Updated device '%s' for %s", device_name, email)
+            _LOGGER.info("Successfully updated device '%s' for %s.", device_name, email)
         else:
             devices.append(device)
-            _LOGGER.info("Added device '%s' to %s", device_name, email)
+            _LOGGER.info("Successfully added device '%s' to %s.", device_name, email)
 
         await self.async_save()
         return True
 
     async def remove_device_from_person(self, email: str, device_name: str) -> bool:
         """Remove a notification device from a person."""
+        _LOGGER.info("Attempting to remove device '%s' from person %s.", device_name, email)
         if email not in self._devices_by_person:
-            _LOGGER.warning("Person %s not found in notification mappings", email)
+            _LOGGER.warning("Person %s not found in notification mappings. Cannot remove device.", email)
             return False
 
         devices = self._devices_by_person[email]
@@ -128,25 +136,28 @@ class PersonNotificationManager:
         devices[:] = [dev for dev in devices if dev.Name != device_name]
 
         if len(devices) < before_count:
+            _LOGGER.info("Successfully removed device '%s' from %s. %d devices remaining.", device_name, email, len(devices))
             if not devices:
                 del self._devices_by_person[email]
+                _LOGGER.info("Person %s has no devices left and has been removed from mappings.", email)
             await self.async_save()
-            _LOGGER.info("Removed device '%s' from %s", device_name, email)
             return True
 
         _LOGGER.warning(
-            "Device '%s' not found for person %s", device_name, email
+            "Device '%s' not found for person %s. No changes made.", device_name, email
         )
         return False
 
     async def remove_all_devices_for_person(self, email: str) -> bool:
         """Remove all notification devices for a person."""
+        _LOGGER.info("Attempting to remove all notification devices for person %s.", email)
         if email in self._devices_by_person:
             del self._devices_by_person[email]
+            _LOGGER.info("Successfully removed all devices for person %s.", email)
             await self.async_save()
-            _LOGGER.info("Removed all devices for %s", email)
             return True
 
+        _LOGGER.warning("Person %s not found in notification mappings. Nothing to remove.", email)
         return False
 
 
