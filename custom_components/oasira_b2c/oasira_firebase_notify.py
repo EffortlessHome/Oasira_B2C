@@ -9,56 +9,31 @@ from homeassistant.components.notify import (
     BaseNotificationService,
     ATTR_TITLE,
     ATTR_MESSAGE,
-    # Adding ATTR_DATA for rich content/embedded pictures
     ATTR_DATA,
 )
 from homeassistant.helpers import storage
+from typing import Optional, Dict, Any
+
+from . import DOMAIN # Assuming DOMAIN is defined in __init__.py
+from .oasira_api import OasiraAPIClient
+from .const import FIREBASE_SCOPE
+from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
 STORAGE_KEY = "oasira_firebase_tokens"
 STORAGE_VERSION = 1
 
-# IMPORTANT: Update this URL/project ID if necessary for the Oasira integration
-FIREBASE_URL = (
-    "https://fcm.googleapis.com/v1/projects/oasira_project_id/messages:send"
-)
-
-# NOTE: Replace 'oasira_project_id' with the actual Firebase project ID used by Oasira.
-# Assuming the structure is similar to the working example.
-
-
-async def async_get_service(hass, config, discovery_info=None):
-    """Instantiates the Oasira Firebase Notify Service."""
-    service_account_path = hass.config.path(
-        "custom_components/oasira/firebase_service_account.json"
-    )
-
-    def load_creds():
-        try:
-            with open(service_account_path, "r") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            _LOGGER.error("Firebase service account file not found at %s", service_account_path)
-            return {}
-
-    creds = await hass.async_add_executor_job(load_creds)
-
-    store = storage.Store(hass, STORAGE_VERSION, STORAGE_KEY)
-    tokens = await store.async_load() or []
-
-    return OasiraFirebaseNotifyService(hass, creds, tokens, store)
-
 
 class OasiraFirebaseNotifyService(BaseNotificationService):
     """Service to send notifications via Firebase Cloud Messaging."""
 
-    def __init__(self, hass, creds, tokens, store):
+    def __init__(self, hass: HomeAssistant, project_id: str, tokens: list[str], store: storage.Store):
         self.hass = hass
-        self.creds = creds
+        self.project_id = project_id
         self.tokens = tokens
         self.store = store
-        self._access_token = None
+        self._access_token: Optional[str] = None
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def async_start(self):
@@ -68,7 +43,8 @@ class OasiraFirebaseNotifyService(BaseNotificationService):
 
     async def async_stop(self):
         """Closes the HTTP session."""
-        await self._session.close()
+        if self._session:
+            await self._session.close()
 
     async def send_message(self, message: str, title: str, **kwargs):
         """
@@ -79,18 +55,21 @@ class OasiraFirebaseNotifyService(BaseNotificationService):
             _LOGGER.warning("No registered FCM tokens. Notification skipped.")
             return
 
-        # Extract optional rich data
         data = kwargs.get("data", {})
-        # FCM supports rich notifications, including images, via the 'data' payload.
-        # We pass all extra kwargs into the data payload for flexibility.
         if data:
             _LOGGER.debug("Sending notification with custom data: %s", data)
 
         token = await self._get_access_token()
+        if not token:
+            _LOGGER.error("Failed to retrieve Firebase access token. Notification skipped.")
+            return
+
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
+
+        fcm_url = f"https://fcm.googleapis.com/v1/projects/{self.project_id}/messages:send"
 
         # Iterate over tokens and send message to each
         for fcm_token in self.tokens:
@@ -98,14 +77,13 @@ class OasiraFirebaseNotifyService(BaseNotificationService):
                 "message": {
                     "token": fcm_token,
                     "notification": {"title": title, "body": message},
-                    # Use 'data' payload for custom fields, which is necessary for images
                     "data": data,
                 }
             }
             
             try:
                 async with self._session.post(
-                    FIREBASE_URL, headers=headers, json=payload
+                    fcm_url, headers=headers, json=payload
                 ) as resp:
                     if resp.status == 200:
                         _LOGGER.debug("Successfully sent notification to device.")
@@ -116,30 +94,62 @@ class OasiraFirebaseNotifyService(BaseNotificationService):
                 _LOGGER.error("Error sending Firebase push to token %s: %s", fcm_token, e)
 
 
-    async def _get_access_token(self):
-        """Obtains a new OAuth2 access token using JWT."""
-        now = int(time.time())
-        payload = {
-            "iss": self.creds["client_email"],
-            "scope": "https://www.googleapis.com/auth/firebase.messaging",
-            "aud": "https://oauth2.googleapis.com/token",
-            "iat": now,
-            "exp": now + 3600,
-        }
+    async def _get_access_token(self) -> Optional[str]:
+        """Obtains a new OAuth2 access token using JWT by fetching config from Oasira API."""
+        hass = self.hass
+        
+        try:
+            system_id = hass.data[DOMAIN].get("systemid")
+            id_token = hass.data[DOMAIN].get("id_token")
+            
+            if not system_id or not id_token:
+                _LOGGER.error("Missing system_id or id_token in configuration for token refresh.")
+                return None
 
-        # Ensure the private key is correctly loaded and used
-        signer = rsa.RSASigner.from_string(self.creds["private_key"])
-        assertion = jwt.encode(signer, payload)
+            async with OasiraAPIClient(system_id=system_id, id_token=id_token) as client:
+                firebase_config = await client.get_firebase_config()
+            
+            google_firebase_raw = (
+                firebase_config.get("Google_Firebase") if firebase_config else None
+            )
+            if not google_firebase_raw:
+                _LOGGER.error("Missing Google_Firebase config from Oasira.")
+                return None
 
-        async with self._session.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                "assertion": assertion,
+            service_account_info = json.loads(google_firebase_raw)
+            private_key = service_account_info["private_key"]
+            client_email = service_account_info["client_email"]
+
+            # --- OAuth2 JWT Flow ---
+            now = int(time.time())
+            payload = {
+                "iss": client_email,
+                "scope": "https://www.googleapis.com/auth/firebase.messaging",
+                "aud": "https://oauth2.googleapis.com/token",
+                "iat": now,
+                "exp": now + 3600,
             }
-        ) as resp:
-            result = await resp.json()
-            return result["access_token"]
+
+            signer = rsa.RSASigner.from_string(private_key)
+            assertion = jwt.encode(signer, payload)
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                        "assertion": assertion,
+                    },
+                ) as resp:
+                    result = await resp.json()
+                    if "access_token" not in result:
+                        _LOGGER.error("Firebase OAuth error: %s", result)
+                        return None
+                    return result["access_token"]
+        
+        except Exception as e:
+            _LOGGER.exception("Failed to retrieve Firebase access token: %s", e)
+            return None
 
     async def register_token(self, token: str):
         """Registers a new device token."""
@@ -149,5 +159,31 @@ class OasiraFirebaseNotifyService(BaseNotificationService):
             _LOGGER.info("New token registered successfully.")
 
 # Entry point function for Home Assistant to load the service
+async def async_get_service(hass: HomeAssistant, config: Optional[Dict[str, Any]] = None, discovery_info=None):
+    """Instantiates the Oasira Firebase Notify Service dynamically."""
+    domain_data = hass.data.get(DOMAIN, {})
+    
+    # Retrieve stored tokens
+    store = storage.Store(hass, STORAGE_VERSION, STORAGE_KEY)
+    tokens = await store.async_load() or []
+
+    # Retrieve Project ID (which must be available in the config/data loaded by __init__.py)
+    project_id = domain_data.get("project_id")
+    
+    if not project_id:
+        _LOGGER.error("Project ID not found in HA data. Cannot initialize Firebase service.")
+        return None
+
+    # Initialize the service
+    service = OasiraFirebaseNotifyService(hass, project_id, tokens, store)
+    return service
+
+
 async def async_setup_entry(hass, config, entry):
-    return await async_get_service(hass, config, entry)
+    """Set up integration from a config entry."""
+    # Use the dynamic getter
+    service = await async_get_service(hass, config, entry)
+    if service:
+        await service.async_start()
+        return service
+    return None
