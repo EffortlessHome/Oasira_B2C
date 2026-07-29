@@ -229,6 +229,113 @@ class OasiraNotificationService(BaseNotificationService):
         return "\n".join(lines)
 
     async def _send_fcm_notification(
+        self, message: str, title: str, data: dict
+    ) -> None:
+        tokens = self.hass.data.get(DOMAIN, {}).get("notification_tokens", [])
+        if not tokens:
+            _LOGGER.warning("No registered notification tokens")
+            return
+
+        access_token, project_id = await self._get_firebase_access_token()
+        if not access_token or not project_id:
+            _LOGGER.error("Unable to get Firebase access token")
+            return
+
+        fcm_url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+        _LOGGER.info("[EffortlessHome] Using FCM project: %s", project_id)
+
+        session = async_get_clientsession(self.hass)
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        image_url = None
+        payload_data = None
+        if data:
+            payload_data = {}
+            for k, v in data.items():
+                key_str = str(k)
+                value_str = str(v)
+                if key_str in {"image", "image_url", "photo", "photo_url"}:
+                    resolved = self._resolve_image_url(value_str, full_url=True)
+                    if resolved:
+                        value_str = resolved
+                        if not image_url:
+                            image_url = resolved
+                payload_data[key_str] = value_str
+
+        for token in tokens:
+            payload = {
+                "message": {
+                    "token": token,
+                    "notification": {"title": title, "body": message},
+                }
+            }
+            if payload_data:
+                payload["message"]["data"] = payload_data
+
+            if image_url:
+                # Enhanced image handling for better native notification support
+                payload["message"]["notification"]["image"] = image_url
+                payload["message"]["android"] = {
+                    "notification": {
+                        "image": image_url,
+                        "icon": "ic_stat_ic_notification",
+                        "color": "#007bff",
+                    }
+                }
+                payload["message"]["apns"] = {
+                    "payload": {
+                        "aps": {
+                            "alert": {"title": title, "body": message},
+                            "mutable-content": 1,
+                        },
+                        "image_url": image_url,
+                    }
+                }
+                # Add webpush for web notifications
+                payload["message"]["webpush"] = {
+                    "notification": {
+                        "image": image_url,
+                        "icon": "/local/effortlesshome/user.png",
+                    }
+                }
+
+            try:
+                async with session.post(fcm_url, headers=headers, json=payload) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        _LOGGER.error("FCM push failed: %s", text)
+                        # Check for UNREGISTERED token and remove it
+                        try:
+                            error_data = json.loads(text)
+                            if (
+                                error_data.get("error", {}).get("details") and
+                                any(
+                                    detail.get("errorCode") == "UNREGISTERED"
+                                    for detail in error_data["error"]["details"]
+                                    if detail.get("@type") == "type.googleapis.com/google.firebase.fcm.v1.FcmError"
+                                )
+                            ):
+                                _LOGGER.warning("Removing unregistered FCM token: %s", token[:20] + "...")
+                                domain_data = self.hass.data.get(DOMAIN, {})
+                                tokens_list = domain_data.get("notification_tokens", [])
+                                if token in tokens_list:
+                                    tokens_list.remove(token)
+                                    token_store = domain_data.get("token_store")
+                                    if token_store is not None:
+                                        await token_store.async_save(tokens_list)
+                        except json.JSONDecodeError:
+                            pass  # Not JSON, ignore
+                    else:
+                        _LOGGER.info(
+                            "FCM push successful for token: %s", token[:20] + "..."
+                        )
+            except Exception as exc:
+                _LOGGER.error("FCM push error: %s", exc)
+
+    async def _send_fcm_notification_old(
            self, message: str, title: str, data: dict
        ) -> None:
            """Send a notification message to all registered devices."""
