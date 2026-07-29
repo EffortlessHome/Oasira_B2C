@@ -121,6 +121,28 @@ class PersonNotificationManager:
             devices.append(device)
             _LOGGER.info("Successfully added device '%s' to %s.", device_name, email)
 
+        domain_data = hass.data.setdefault(DOMAIN, {})
+        tokens = domain_data.setdefault("notification_tokens", [])
+        _LOGGER.info(
+            "[Oasira] Current token count: %s",
+            len(tokens),
+        )
+        if token not in tokens:
+            tokens.append(token)
+            token_store = domain_data.get("token_store")
+            if token_store is not None:
+                await token_store.async_save(tokens)
+            _LOGGER.info(
+                "[Oasira] Token added. New token count: %s",
+                len(tokens),
+            )
+        else:
+            _LOGGER.info("[Oasira] Token already registered")
+
+        _LOGGER.info(
+            "[Oasira] ✅ Push token registered successfully for %s", device_name
+        )
+
         await self.async_save()
         return True
 
