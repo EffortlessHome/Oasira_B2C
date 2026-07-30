@@ -121,7 +121,7 @@ class PersonNotificationManager:
             devices.append(device)
             _LOGGER.info("Successfully added device '%s' to %s.", device_name, email)
 
-        domain_data = hass.data.setdefault(DOMAIN, {})
+        domain_data = self.hass.data.setdefault(DOMAIN, {})
         tokens = domain_data.setdefault("notification_tokens", [])
         _LOGGER.info(
             "[Oasira] Current token count: %s",
