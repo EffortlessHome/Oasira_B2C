@@ -4,8 +4,6 @@
   "version": "1.0.22",
   "documentation": "https://www.oasira.ai",
   "issue_tracker": "https://github.com/EffortlessHome/Oasira_B2C/issues",
-  "hacs": "https://github.com/hacs/integration",
-  "hacs_source": "custom",
   "codeowners": [
     "@EffortlessHome"
   ],
@@ -33,6 +31,5 @@
     "google-api-python-client==2.126.0",
     "gTTS==2.5.0",
     "httpx>=0.27.0"
-  ],
-  "import_executor": true
+  ]
 }
