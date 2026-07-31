@@ -511,7 +511,7 @@ async def get_authenticated_client(
     
     Args:
         hass: Home Assistant instance
-        base_url: Ollama base URL (defaults to localhost:11434)
+        base_url: Ollama base URL 
         timeout: Request timeout in seconds
         
     Returns:

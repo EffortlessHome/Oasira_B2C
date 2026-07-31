@@ -8,7 +8,7 @@ DEFAULT_CONVERSATION_NAME = "Oasira AI Conversation"
 DEFAULT_AI_TASK_NAME = "Oasira AI Task"
 
 CONF_BASE_URL = "base_url"
-DEFAULT_CONF_BASE_URL = "http://localhost:11434"
+DEFAULT_CONF_BASE_URL = ""
 CONF_MODEL = "model"
 CONF_CHAT_MODEL = "chat_model"
 DEFAULT_MODEL = "llama3:latest"

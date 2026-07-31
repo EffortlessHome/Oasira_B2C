@@ -316,7 +316,7 @@ change_config:
   fields:
     base_url:
       example: "http://localhost:11434"
-      description: "Ollama server URL (default: http://localhost:11434)"
+      description: "Ollama server URL"
       selector:
         text:
     model:

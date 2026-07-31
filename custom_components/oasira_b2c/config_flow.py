@@ -391,7 +391,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         "ollama_base_url",
-                        default=self.config_entry.options.get("ollama_base_url", "http://localhost:11434"),
+                        default=self.config_entry.options.get("ollama_base_url", ":"),
                     ): str,
                 }
             ),
