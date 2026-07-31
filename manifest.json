@@ -1,7 +1,0 @@
-{
-  "domain": "oasira_b2c",
-  "name": "Oasira Home",
-  "codeowners": [
-    "@EffortlessHome"
-  ],
-  "description": "A comprehensive Home Assistant integration providing advanced home automation features including security monitoring, presence detection, and smart home coordination.",
