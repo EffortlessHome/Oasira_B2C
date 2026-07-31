@@ -47,9 +47,6 @@
         "data": {
           "debug_mode": "Enable debug logging",
           "ollama_base_url": "Ollama Base URL"
-        },
-        "description": {
-          "ollama_base_url": "Base URL for Ollama API"
         }
       }
     }

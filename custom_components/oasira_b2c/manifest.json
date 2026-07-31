@@ -2,8 +2,8 @@
   "domain": "oasira_b2c",
   "name": "Oasira Home",
   "version": "1.0.22",
-  "documentation": "https://www.home-assistant.io/integrations/Oasira",
-  "issue_tracker": "https://github.com/Oasira/Oasira/issues",
+  "documentation": "https://www.oasira.ai",
+  "issue_tracker": "https://github.com/EffortlessHome/Oasira_B2C/issues",
   "hacs": "https://github.com/hacs/integration",
   "hacs_source": "custom",
   "codeowners": [
@@ -16,7 +16,10 @@
     "http",
     "recorder",
     "conversation",
-    "ai_task"
+    "ai_task",
+    "scrape",
+    "rest",
+    "energy"
   ],
   "loggers": [
     "Oasira"
