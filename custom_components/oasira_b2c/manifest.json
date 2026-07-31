@@ -15,11 +15,11 @@
     "energy"
   ],
   "documentation": "https://www.oasira.ai",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/EffortlessHome/Oasira_B2C/issues",
   "loggers": [
     "Oasira"
   ],
-  "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/EffortlessHome/Oasira_B2C/issues",
   "requirements": [
     "oasira==0.2.18",
     "gcal-sync==6.2.0",
