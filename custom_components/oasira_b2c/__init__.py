@@ -798,12 +798,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as e:
             _LOGGER.warning("Failed to create motion sensor groups: %s", e)
 
-        # Create siren group
-        #try:
-        #    siren_grouper = SirenGrouper(hass)
-        #    await siren_grouper.create_siren_group()
-        #except Exception as e:
-        #    _LOGGER.warning("Failed to create siren group: %s", e)
 
         await loaddevicegroups(None)
 
