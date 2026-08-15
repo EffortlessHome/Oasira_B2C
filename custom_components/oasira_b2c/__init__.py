@@ -68,7 +68,7 @@ from .alarm_common import (
 from .area_manager import AreaManager
 from .auto_area import AutoArea
 
-from oasira import OasiraAPIClient, OasiraAPIError
+from .oasira import OasiraAPIClient, OasiraAPIError
 from .auth_helper import ensure_valid_id_token, refresh_firebase_id_token, safe_api_call
 
 from .const import (

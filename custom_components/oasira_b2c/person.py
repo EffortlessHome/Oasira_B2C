@@ -15,7 +15,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.event import async_track_state_change_event
 
-from oasira import OasiraAPIClient, OasiraAPIError
+from .oasira import OasiraAPIClient, OasiraAPIError
 from .const import DOMAIN, NAME, ATTR_LATITUDE, ATTR_LONGITUDE
 from .notificationdevice import Oasiranotificationdevice
 from .auth_helper import ensure_valid_id_token, safe_api_call

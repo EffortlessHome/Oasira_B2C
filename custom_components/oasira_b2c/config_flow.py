@@ -8,7 +8,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
-from oasira import OasiraAPIClient, OasiraAPIError
+from .oasira import OasiraAPIClient, OasiraAPIError
 from .const import DOMAIN, NAME
 
 _LOGGER = logging.getLogger(__name__)

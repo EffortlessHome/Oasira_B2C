@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 
 from . import const
 from .auth_helper import ensure_valid_id_token, safe_api_call
-from oasira import OasiraAPIClient, OasiraAPIError
+from .oasira import OasiraAPIClient, OasiraAPIError
 from .const import (
     ALARM_TYPE_MED_ALERT,
     ALARM_TYPE_MONITORING,

@@ -13,7 +13,7 @@ from homeassistant.helpers.device_registry import async_get as async_get_dev_reg
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from oasira import OasiraAPIClient, OasiraAPIError
+from .oasira import OasiraAPIClient, OasiraAPIError
 from .auth_helper import ensure_valid_id_token, safe_api_call
 from .const import DOMAIN, NAME
 from .oasiranotificationdevice import oasiranotificationdevice

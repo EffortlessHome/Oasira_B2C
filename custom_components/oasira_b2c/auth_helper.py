@@ -7,7 +7,7 @@ import time
 from typing import Any, Callable, Coroutine, TypeVar, Awaitable
 from functools import wraps
 
-from oasira import OasiraAPIClient, OasiraAPIError
+from .oasira import OasiraAPIClient, OasiraAPIError
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)

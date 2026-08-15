@@ -293,7 +293,7 @@ async def _get_firebase_access_token(
             _LOGGER.error("Missing or invalid id_token for Firebase access")
             return None, None
 
-        from oasira import OasiraAPIClient, OasiraAPIError
+        from .oasira import OasiraAPIClient, OasiraAPIError
         import time
 
         async def _fetch_config() -> dict[str, Any]:
