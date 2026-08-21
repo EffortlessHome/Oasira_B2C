@@ -30,7 +30,7 @@ from .ai_const import (
     DEFAULT_TOP_P,
     get_model_config,
 )
-from .ai_entity import ExtendedOpenAIBaseLLMEntity
+from .ai_entity import ExtendedOpenAIBaseLLMEntity, _convert_content_to_param
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigSubentry
@@ -101,26 +101,38 @@ class ExtendedOpenAITaskEntity(
         chat_log: conversation.ChatLog,
     ) -> ai_task.GenDataTaskResult:
         """Handle a generate data task."""
-        # Call _async_handle_chat_log with empty custom_functions and exposed_entities
-        # AI Task operates without functions
-        await self._async_handle_chat_log(
-            chat_log,
-            function_tools=[],
-            exposed_entities=[],
-            llm_context=None,
-            structure_name=task.name,
-            structure=task.structure,
-        )
-
-        # Extract response
-        if not isinstance(chat_log.content[-1], conversation.AssistantContent):
-            raise HomeAssistantError(
-                "Last content in chat log is not an AssistantContent"
+        messages = _convert_content_to_param(chat_log.content)
+        if task.structure:
+            schema_description = str(task.structure)
+            structured_instruction = (
+                "Return only valid JSON for this task. Do not include markdown, "
+                "code fences, or explanatory text. The JSON must match this "
+                f"requested structure ({task.name}): {schema_description}"
             )
+            if messages and messages[-1]["role"] == "user":
+                messages[-1]["content"] = (
+                    f"{messages[-1]['content']}\n\n{structured_instruction}"
+                )
+            else:
+                messages.append({"role": "user", "content": structured_instruction})
 
-        text = chat_log.content[-1].content or ""
+        options = self.subentry.data
+        model = options.get(CONF_MODEL, options.get(CONF_CHAT_MODEL, DEFAULT_MODEL))
 
-        # Handle structured output
+        try:
+            response = await self._client.chat(
+                model=model,
+                messages=messages,
+                stream=False,
+                temperature=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+                top_p=options.get(CONF_TOP_P, DEFAULT_TOP_P),
+                max_tokens=options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+            )
+            text = response.get("message", {}).get("content", "")
+        except Exception as err:
+            _LOGGER.error("Failed to generate structured data: %s", err)
+            raise HomeAssistantError(f"Failed to generate data: {err}") from err
+
         if not task.structure:
             return ai_task.GenDataTaskResult(
                 conversation_id=chat_log.conversation_id,
@@ -128,7 +140,7 @@ class ExtendedOpenAITaskEntity(
             )
 
         try:
-            data = json_loads(text)
+            data = json_loads(text.strip())
         except JSONDecodeError as err:
             _LOGGER.error(
                 "Failed to parse JSON response: %s. Response: %s",

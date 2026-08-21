@@ -719,6 +719,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "conversation",
             "ai_task",
             "tts",
+            "stt",
         ],
     )
 
@@ -911,6 +912,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             "conversation",
             "ai_task",
             "tts",
+            "stt",
         ],
     )
 
