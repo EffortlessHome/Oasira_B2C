@@ -40,16 +40,6 @@
       "reauth_successful": "Re-authentication successful"
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Oasira Options",
-        "data": {
-          "debug_mode": "Enable debug logging"
-        }
-      }
-    }
-  },
   "services": {
     "clean_motion_files": {
       "name": "Clean motion files",

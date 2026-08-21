@@ -133,66 +133,14 @@ class AutomationAnalysisFunction(Function):
 
             _LOGGER.info("Analyzing %d entities for patterns", len(entities_to_analyze))
 
-            # Analyze patterns
-            _LOGGER.info("Starting pattern analysis for %d entities over %d days", len(entities_to_analyze), time_range_days)
-            patterns = await self._analyze_patterns(
-                hass, entities_to_analyze, time_range_days, time_window_minutes
+            # Recommendations are generated exclusively by the Oasira agent.
+            # Keep the response field for compatibility with existing consumers.
+            patterns = []
+            _LOGGER.info(
+                "Skipping local history analysis; sending %d entities to the Oasira agent",
+                len(entities_to_analyze),
             )
 
-            _LOGGER.info("Found %d raw patterns before filtering", len(patterns))
-            
-            # Filter patterns by type and confidence
-            if pattern_types:
-                patterns = [p for p in patterns if p.get("pattern_type") in pattern_types]
-            
-            patterns_before_confidence = len(patterns)
-            patterns = [p for p in patterns if p.get("confidence", 0) >= min_confidence]
-            
-            _LOGGER.info("After confidence filtering (%.2f): %d/%d patterns remain", 
-                        min_confidence, len(patterns), patterns_before_confidence)
-            
-            # Debug: Log what entities were analyzed
-            if not patterns:
-                _LOGGER.warning("No patterns found - debugging entity analysis:")
-                for entity in entities_to_analyze[:5]:  # Log first 5 entities
-                    entity_id = entity.get("entity_id", "")
-                    entity_type = entity_id.split(".")[0] if "." in entity_id else ""
-                    _LOGGER.warning("  Analyzed entity: %s (type: %s)", entity_id, entity_type)
-                
-                # Additional debugging - check if we're getting any history at all
-                _LOGGER.warning("Checking history for first few entities:")
-                for entity in entities_to_analyze[:3]:
-                    entity_id = entity.get("entity_id", "")
-                    try:
-                        # Use the same time range as the main analysis
-                        debug_end_time = dt_util.utcnow()
-                        debug_start_time = debug_end_time - timedelta(days=time_range_days)
-                        
-                        entity_history = await self._get_entity_history(
-                            hass, entity_id, debug_start_time, debug_end_time
-                        )
-                        _LOGGER.warning("  Entity %s: %d history entries", entity_id, len(entity_history))
-                        if entity_history:
-                            # Log first few entries
-                            for i, state in enumerate(entity_history[:3]):
-                                _LOGGER.warning("    Entry %d: %s -> %s at %s", 
-                                              i, state.entity_id, state.state, state.last_changed)
-                    except Exception as e:
-                        _LOGGER.warning("  Entity %s: Error getting history - %s", entity_id, e)
-
-            # Debug: Log pattern detection results before AI enhancement
-            _LOGGER.info("=== PATTERN DETECTION RESULTS ===")
-            _LOGGER.info("Total patterns detected: %d", len(patterns))
-            _LOGGER.info("Total entities analyzed: %d", len(entities_to_analyze))
-            _LOGGER.info("Time range used: %d days", time_range_days)
-            _LOGGER.info("Min confidence threshold: %.2f", min_confidence)
-            
-            if not patterns:
-                _LOGGER.warning("NO PATTERNS DETECTED - But will still send to AI for entity-based suggestions!")
-                _LOGGER.warning("Pattern detection pipeline is failing - need to debug entity history retrieval")
-            
-            # Generate automation recommendations using AI (MANDATORY)
-            # Always call AI even if no patterns detected - AI can suggest based on entity types
             _LOGGER.info("Enhancing recommendations with the Oasira agent")
             _LOGGER.info("Client object: %s, Type: %s", client, type(client))
             _LOGGER.info("Patterns to enhance: %d", len(patterns))
@@ -1094,6 +1042,7 @@ IMPORTANT:
                     }
                 ],
                 stream=False,  # Non-streaming for easier parsing
+                max_tokens=3000,
                 timeout=300.0,  # 5 minute timeout for complex pattern analysis
             )
             
@@ -1183,25 +1132,55 @@ IMPORTANT:
         # Strategy 1: Direct parse
         try:
             result = json.loads(text)
-            _LOGGER.debug("Strategy 1 (direct parse) succeeded")
-            return result
+            if isinstance(result, dict):
+                _LOGGER.debug("Strategy 1 (direct parse) succeeded")
+                return result
+            if isinstance(result, list):
+                _LOGGER.debug("Strategy 1 (array parse) succeeded")
+                return {"enhanced_recommendations": result}
+            if isinstance(result, str):
+                text = result
         except json.JSONDecodeError as e:
             _LOGGER.debug("Strategy 1 failed: %s", e)
         
         # Clean up the text first
         text = text.strip()
+
+        # Some OpenAI-compatible providers wrap assistant content in a string
+        # representation instead of returning the JSON directly.
+        provider_match = re.match(
+            r"^@\{role=assistant;\s*content=(.*)\}$", text, re.DOTALL
+        )
+        if provider_match:
+            text = provider_match.group(1).strip()
+
+        # Extract the first complete JSON value from responses with prose
+        # around the JSON. Accept arrays because the model may omit the wrapper.
+        decoder = json.JSONDecoder()
+        for index, character in enumerate(text):
+            if character not in "[{":
+                continue
+            try:
+                result, _ = decoder.raw_decode(text[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(result, list):
+                result = {"enhanced_recommendations": result}
+            if isinstance(result, dict):
+                _LOGGER.debug("Strategy 2 (embedded JSON) succeeded")
+                return result
         
-        # Strategy 2: Try to find JSON in markdown code blocks
+        # Strategy 3: Try to find JSON in markdown code blocks
         markdown_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL | re.IGNORECASE)
         if markdown_match:
             try:
                 result = json.loads(markdown_match.group(1))
-                _LOGGER.debug("Strategy 2 (markdown block) succeeded")
+                _LOGGER.debug("Strategy 3 (markdown block) succeeded")
                 return result
             except json.JSONDecodeError as e:
                 _LOGGER.debug("Strategy 2 failed: %s", e)
         
-        # Strategy 3: Try to find any JSON object - use bracket matching
+        # Strategy 4: Try to find any JSON object - use bracket matching
         first_brace = text.find('{')
         if first_brace != -1:
             # Find the matching closing brace
@@ -1220,12 +1199,12 @@ IMPORTANT:
                 json_str = text[first_brace:end_brace+1]
                 try:
                     result = json.loads(json_str)
-                    _LOGGER.debug("Strategy 3 (bracket matching) succeeded")
+                    _LOGGER.debug("Strategy 4 (bracket matching) succeeded")
                     return result
                 except json.JSONDecodeError as e:
                     _LOGGER.debug("Strategy 3 failed: %s", e)
         
-        # Strategy 4: Try to fix common issues and retry
+        # Strategy 5: Try to fix common issues and retry
         try:
             # Remove common issues
             cleaned = text
@@ -1242,7 +1221,7 @@ IMPORTANT:
         except json.JSONDecodeError as e:
             _LOGGER.debug("Strategy 4 failed: %s", e)
         
-        # Strategy 5: Try to extract just the recommendations array
+        # Strategy 6: Try to extract just the recommendations array
         try:
             # Find array start
             arr_match = re.search(r'\[\s*\{', text)
@@ -1266,7 +1245,7 @@ IMPORTANT:
                     # Wrap in object
                     wrapped = '{"enhanced_recommendations": ' + array_str + '}'
                     result = json.loads(wrapped)
-                    _LOGGER.debug("Strategy 5 (array extraction) succeeded")
+                    _LOGGER.debug("Strategy 6 (array extraction) succeeded")
                     return result
         except Exception as e:
             _LOGGER.debug("Strategy 5 failed: %s", e)

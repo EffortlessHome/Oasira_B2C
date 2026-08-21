@@ -112,11 +112,11 @@ action:
   - variables:
       summary: >-
         Oasira Automation Pattern Analysis:\n
-        Patterns found: {{ scan_results.pattern_count if scan_results is defined and scan_results.pattern_count is defined else 'N/A' }}\n
+        Patterns found: {{ scan_results.summary.total_patterns if scan_results is defined and scan_results.summary is defined and scan_results.summary.total_patterns is defined else 0 }}\n
         Top Patterns:\n
         {%- if scan_results is defined and scan_results.patterns is defined %}
         {%- for p in scan_results.patterns[:5] %}
-        - {{ p.description }} (Confidence: {{ p.confidence }})
+        - {{ p.description | default(p.pattern_type | default('Unknown pattern')) }} (Confidence: {{ p.confidence | default(0) }})
         {%- endfor %}
         {%- else %}
         No patterns found.

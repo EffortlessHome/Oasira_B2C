@@ -5,7 +5,6 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
 from .oasira import OasiraAPIClient, OasiraAPIError
@@ -357,38 +356,3 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry):
-        """Get the options flow for this handler."""
-        return OptionsFlowHandler(config_entry)
-
-
-class OptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for Oasira."""
-
-    def __init__(self, config_entry):
-        """Initialize options flow.
-        
-        Note: config_entry is passed by the framework and set as a property.
-        We accept it here to avoid TypeError but don't store it manually.
-        """
-        pass
-
-    async def async_step_init(self, user_input=None):
-        """Manage the options."""
-        if user_input is not None:
-            # For OptionsFlow, data is automatically stored as entry.options
-            return self.async_create_entry(title="", data=user_input)
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        "debug_mode",
-                        default=self.config_entry.options.get("debug_mode", False),
-                    ): bool,
-                }
-            ),
-        )
