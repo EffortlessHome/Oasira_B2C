@@ -634,7 +634,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.info(
                     "✅ Firebase config retrieved from Oasira and stored for Oasira services. "
                     "Note: Home Assistant's mobile_app integration requires manual configuration.yaml setup. "
-                    "Use 'Oasira.get_firebase_config' service to view the config."
+                    "Firebase configuration is managed internally by Oasira services."
                 )
             else:
                 _LOGGER.info(
@@ -984,10 +984,6 @@ def register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(
         DOMAIN, "deploy_latest_config", handle_deploy_latest_config
-    )
-
-    hass.services.async_register(
-        DOMAIN, "get_firebase_config", handle_get_firebase_config
     )
 
     hass.services.async_register(
@@ -1459,84 +1455,6 @@ async def clean_motion_files(call: ServiceCall) -> None:
 async def cleanmotionfiles(calldata):
     """Execute the command to delete old snapshots (deprecated name)."""
     await clean_motion_files(calldata)
-
-
-async def handle_get_firebase_config(call: ServiceCall) -> None:
-    """Handle the get_firebase_config service call."""
-    hass = HASSComponent.get_hass()
-
-    try:
-        # Get credentials from hass.data
-        system_id = hass.data[DOMAIN].get("systemid")
-        id_token = hass.data[DOMAIN].get("id_token")
-
-        if not system_id or not id_token:
-            _LOGGER.error("System ID or ID token not found in configuration")
-            notify_create(
-                hass,
-                "Firebase Config Error: System ID or ID token not found",
-                title="Oasira",
-            )
-            return
-
-        if not await ensure_valid_id_token(hass):
-            _LOGGER.error("Missing or invalid id_token for Firebase config retrieval")
-            notify_create(
-                hass,
-                "Firebase Config Error: System ID or ID token not found",
-                title="Oasira",
-            )
-            return
-
-        async def _fetch_mobile_app_config() -> dict[str, Any]:
-            id_token = hass.data[DOMAIN].get("id_token")
-            if not id_token:
-                raise OasiraAPIError("Missing id_token for Firebase config retrieval")
-            async with OasiraAPIClient(system_id=system_id, id_token=id_token) as api_client:
-                from .mobile_app_config import (
-                    setup_mobile_app_config,
-                    generate_mobile_app_config_yaml,
-                )
-
-                return await setup_mobile_app_config(hass, api_client)
-
-        mobile_app_config = await safe_api_call(hass, _fetch_mobile_app_config)
-
-        if mobile_app_config:
-            # Generate YAML config for display
-            yaml_config = generate_mobile_app_config_yaml(mobile_app_config)
-
-            # Create a persistent notification with the config
-            message = f"""
-            Firebase Configuration retrieved from Oasira:
-
-            ```yaml
-            {yaml_config}
-            ```
-
-            **Important:** Home Assistant's mobile_app integration requires manual configuration.
-            To enable mobile app notifications, add the above YAML to your configuration.yaml file, then restart Home Assistant.
-
-            Without this configuration, mobile app notifications will not work.
-            """
-            notify_create(hass, message, title="Firebase Configuration")
-
-            _LOGGER.info("Firebase config retrieved and displayed to user")
-        else:
-            _LOGGER.error("Failed to retrieve Firebase config from Oasira")
-            notify_create(
-                hass,
-                "Failed to retrieve Firebase configuration from Oasira",
-                title="Firebase Config Error",
-            )
-
-    except Exception as e:
-        _LOGGER.error(f"Error retrieving Firebase config: {e}", exc_info=True)
-        notify_create(
-            hass,
-            f"Error retrieving Firebase config: {str(e)}",
-            title="Firebase Config Error",
-        )
 
 
 async def handle_deploy_latest_config(call: ServiceCall) -> None:

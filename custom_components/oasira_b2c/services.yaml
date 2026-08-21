@@ -10,10 +10,6 @@ clean_motion_files:
           max: 365
           unit_of_measurement: days
 
-# Get Firebase configuration from Oasira for mobile_app setup
-get_firebase_config:
-  target: {}
-
 # Add a label to an entity
 add_label_to_entity:
   target: {}
@@ -310,16 +306,6 @@ summarize_timeline_period:
           multiple: true
 
 # Oasira AI Conversation services
-change_config:
-  name: Change config
-  description: Change the configuration of an existing Oasira AI Conversation integration
-  fields:
-    model:
-      example: "@cf/meta/llama-3.2-3b-instruct"
-      description: "Model to use"
-      selector:
-        text:
-
 analyze_image:
   name: Analyze image
   description: Analyze an image and provide detailed description

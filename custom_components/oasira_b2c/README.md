@@ -38,11 +38,8 @@ The integration combines cloud-backed Oasira system data with local Home Assista
 - AI task platform integration
 - Runtime connection to Ollama using configurable base URL and model
 - AI services:
-	- change_config
 	- analyze_image
 	- scan_home_automation_patterns
-	- reload_skills
-	- download_skill
 
 ### Automation Assets and UX
 
@@ -79,7 +76,6 @@ Operational services include:
 - create_alert
 - update_entity
 - deploy_latest_config
-- get_firebase_config
 - add_label_to_entity
 
 Timeline services include:
@@ -90,11 +86,8 @@ Timeline services include:
 
 AI services include:
 
-- change_config
 - analyze_image
 - scan_home_automation_patterns
-- reload_skills
-- download_skill
 
 ## Installation
 

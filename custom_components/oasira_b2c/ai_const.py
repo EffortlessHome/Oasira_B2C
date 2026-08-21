@@ -330,16 +330,7 @@ CONF_SKILLS = "skills"
 DEFAULT_SKILLS_DIRECTORY = "skills"
 SKILL_FILE_NAME = "SKILL.md"
 
-# Skill Services
-SERVICE_RELOAD_SKILLS = "reload_skills"
-SERVICE_DOWNLOAD_SKILL = "download_skill"
 SERVICE_DETECT_OBJECTS = "detect_objects"
-
-# GitHub repository for downloadable skills
-GITHUB_REPO_OWNER = "jekalmin"
-GITHUB_REPO_NAME = "oasira_ai_conversation"
-GITHUB_SKILLS_BRANCH = "develop"
-GITHUB_SKILLS_PATH = "examples/skills"
 
 # Working Directory
 DEFAULT_WORKING_DIRECTORY = (
