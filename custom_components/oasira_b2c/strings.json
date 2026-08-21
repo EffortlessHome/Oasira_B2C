@@ -45,8 +45,7 @@
       "init": {
         "title": "Oasira Options",
         "data": {
-          "debug_mode": "Enable debug logging",
-          "ollama_base_url": "Ollama Base URL"
+          "debug_mode": "Enable debug logging"
         }
       }
     }

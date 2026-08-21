@@ -43,7 +43,7 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the Ollama Conversation entities."""
+    """Set up the Oasira agent conversation entities."""
     _LOGGER.debug("Setting up merged AI conversation platform for entry %s", config_entry.entry_id)
 
     subentries = [
@@ -142,7 +142,7 @@ class ExtendedOpenAIAgentEntity(
             intent_response = intent.IntentResponse(language=user_input.language)
             intent_response.async_set_error(
                 intent.IntentResponseErrorCode.UNKNOWN,
-                f"Sorry, I had a problem talking to Ollama: {err}",
+                f"Sorry, I had a problem talking to the Oasira agent: {err}",
             )
             return conversation.ConversationResult(
                 response=intent_response, conversation_id=user_input.conversation_id

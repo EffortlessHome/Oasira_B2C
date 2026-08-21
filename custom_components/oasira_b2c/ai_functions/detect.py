@@ -1,4 +1,4 @@
-"""Object detection functions for Oasira AI Conversation using Ollama vision models."""
+"""Object detection functions using OpenAI-compatible vision models."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ Format your response as a structured analysis."""
         exposed_entities: list[dict[str, Any]],
         client: Any,
     ) -> dict[str, Any]:
-        """Execute object detection using Ollama vision model."""
+        """Execute object detection using the configured vision model."""
         try:
             # Extract parameters
             image_url = arguments.get("image_url")
@@ -55,7 +55,7 @@ Provide a clear, concise response for each category."""
             # Get image content as base64
             image_content = await self._get_image_content(hass, image_url)
 
-            # Create messages for Ollama vision model
+            # Create messages for the vision model
             messages = [
                 {
                     "role": "user",
@@ -69,7 +69,7 @@ Provide a clear, concise response for each category."""
                 }
             ]
 
-            # Call Ollama chat API
+            # Call the OpenAI-compatible chat API
             response = await client.chat(
                 model=model,
                 messages=messages,
@@ -77,7 +77,7 @@ Provide a clear, concise response for each category."""
                 timeout=300.0,
             )
 
-            # Extract the analysis from Ollama response
+            # Extract the analysis from the chat response
             analysis = response.get("message", {}).get("content", "")
 
             # Parse structured results

@@ -1,4 +1,4 @@
-"""Image analysis functions for Oasira AI Conversation using Ollama."""
+"""Image analysis functions using OpenAI-compatible vision models."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .base import Function
 
 
 class ImageAnalysisFunction(Function):
-    """Function for analyzing images using Ollama vision models."""
+    """Function for analyzing images using the configured vision model."""
 
     def __init__(self) -> None:
         """Initialize the image analysis function."""
@@ -28,7 +28,7 @@ class ImageAnalysisFunction(Function):
         exposed_entities: list[dict[str, Any]],
         client: Any,
     ) -> dict[str, Any]:
-        """Execute the image analysis function using Ollama."""
+        """Execute the image analysis function."""
         try:
             # Extract parameters
             image_url = arguments["image_url"]
@@ -38,7 +38,7 @@ class ImageAnalysisFunction(Function):
             # Convert image URL to base64 if local
             image_content = await self._get_image_content(hass, image_url)
 
-            # Create messages for Ollama vision model
+            # Create messages for the vision model
             messages = [
                 {
                     "role": "user",
@@ -52,7 +52,7 @@ class ImageAnalysisFunction(Function):
                 }
             ]
 
-            # Call Ollama chat API
+            # Call the OpenAI-compatible chat API
             response = await client.chat(
                 model=model,
                 messages=messages,
@@ -60,7 +60,7 @@ class ImageAnalysisFunction(Function):
                 timeout=300.0,
             )
 
-            # Extract the analysis from Ollama response
+            # Extract the analysis from the chat response
             analysis = response.get("message", {}).get("content", "")
 
             return {

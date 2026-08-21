@@ -31,10 +31,8 @@ GET_NOTIFICATION_DEVICES_SCHEMA = vol.Schema({
 })
 
 from .ai_const import (
-    CONF_BASE_URL,
     CONF_MAX_TOKENS,
     CONF_MODEL,
-    DEFAULT_CONF_BASE_URL,
     DEFAULT_MODEL,
     DOMAIN,
     GITHUB_REPO_NAME,
@@ -89,7 +87,6 @@ EVALUATE_TIMELINE_ACTIVITY_SCHEMA = vol.Schema(
 
 CHANGE_CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_BASE_URL): cv.string,
         vol.Optional(CONF_MODEL): cv.string,
     }
 )
@@ -105,15 +102,15 @@ DOWNLOAD_SKILL_SCHEMA = vol.Schema(
 _LOGGER = logging.getLogger(__package__)
 
 
-def _get_ollama_client(hass: HomeAssistant) -> Any:
-    """Get the Ollama client from the first available config entry.
+def _get_ai_client(hass: HomeAssistant) -> Any:
+    """Get the OpenAI-compatible client from the first available config entry.
 
     Returns the client or raises HomeAssistantError if none found.
     """
     config_entries = hass.config_entries.async_entries(DOMAIN)
     for entry in config_entries:
-        if hasattr(entry, "oasira_ai_runtime_data") and entry.oasira_ai_runtime_data:
-            return entry.oasira_ai_runtime_data
+        if getattr(entry, "runtime_data", None):
+            return entry.runtime_data
         if hasattr(entry, 'runtime_data') and entry.runtime_data:
             return entry.runtime_data
     raise HomeAssistantError("No Oasira AI config entry with active connection found")
@@ -165,7 +162,7 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
         _LOGGER.debug("[get_notification_devices] Devices found: %s", [d.to_dict() for d in devices])
         return {"devices": [d.to_dict() for d in devices]}
 
-    """Set up services for the Ollama conversation component."""
+    """Set up services for the Oasira agent conversation component."""
 
     async def change_config(call: ServiceCall) -> None:
         """Change configuration."""
@@ -178,7 +175,7 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
         entry_id = entry.entry_id
 
         updates = {}
-        for key in (CONF_BASE_URL, CONF_MODEL):
+        for key in (CONF_MODEL,):
             if key in call.data:
                 updates[key] = call.data[key]
 
@@ -303,8 +300,8 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
             model = settings["model"]
             _LOGGER.debug("Using integration model for analysis: %s", model)
 
-            # Get Ollama client
-            client = _get_ollama_client(hass)
+            # Get the OpenAI-compatible client
+            client = _get_ai_client(hass)
 
             # Convert local image path to base64
             image_data = _local_image_to_base64(hass, image_path)
@@ -384,7 +381,7 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
                 "time_window_minutes": time_window_minutes,
             }
 
-            # Try to get Ollama client from the integration's config entries
+            # Try to get the AI client from the integration's config entries
             client = None
             try:
                 # Get the first available Oasira AI config entry
@@ -393,21 +390,21 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
                 
                 for config_entry in config_entries:
                     _LOGGER.debug("Checking config entry %s (state: %s)", config_entry.entry_id, config_entry.state)
-                    if hasattr(config_entry, "oasira_ai_runtime_data") and config_entry.oasira_ai_runtime_data:
-                        client = config_entry.oasira_ai_runtime_data
+                    if getattr(config_entry, "runtime_data", None):
+                        client = config_entry.runtime_data
                         _LOGGER.info("Using merged AI client from config entry %s for AI-enhanced automation analysis", config_entry.entry_id)
                         _LOGGER.debug("Client type: %s, client has 'chat' method: %s", type(client).__name__, hasattr(client, 'chat'))
                         break
                     if hasattr(config_entry, 'runtime_data') and config_entry.runtime_data:
                         client = config_entry.runtime_data
-                        _LOGGER.info("Using Ollama client from Oasira AI config entry %s for AI-enhanced automation analysis", config_entry.entry_id)
+                        _LOGGER.info("Using AI client from Oasira config entry %s for AI-enhanced automation analysis", config_entry.entry_id)
                         _LOGGER.debug("Client type: %s, client has 'chat' method: %s", type(client).__name__, hasattr(client, 'chat'))
                         break
                     else:
                         _LOGGER.debug("Config entry %s has no runtime_data or it's None", config_entry.entry_id)
                         
                 if client is None:
-                    _LOGGER.warning("No valid Ollama client found in config entries - AI enhancement will be skipped")
+                    _LOGGER.warning("No valid AI client found in config entries - AI enhancement will be skipped")
                     _LOGGER.debug("Config entry details: %s", [(e.entry_id, e.state, hasattr(e, 'runtime_data'), getattr(e, 'runtime_data', None) is not None) for e in config_entries])
             except Exception as e:
                 _LOGGER.error("Error accessing config entry client: %s", e)
@@ -594,7 +591,7 @@ async def async_setup_services(hass: HomeAssistant, config: ConfigType) -> None:
 
             settings = _get_integration_settings(hass)
             model = settings["model"]
-            client = _get_ollama_client(hass)
+            client = _get_ai_client(hass)
 
             focus_area_text = ", ".join(focus_areas) if focus_areas else "general home optimization"
             prompt = (

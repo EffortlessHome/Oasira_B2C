@@ -314,14 +314,9 @@ change_config:
   name: Change config
   description: Change the configuration of an existing Oasira AI Conversation integration
   fields:
-    base_url:
-      example: "http://localhost:11434"
-      description: "Ollama server URL"
-      selector:
-        text:
     model:
-      example: "llama3.2"
-      description: "Model to use (default: llama3.2)"
+      example: "@cf/meta/llama-3.2-3b-instruct"
+      description: "Model to use"
       selector:
         text:
 

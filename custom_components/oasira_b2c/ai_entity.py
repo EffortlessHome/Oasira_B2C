@@ -24,7 +24,6 @@ from .ai_const import (
     CONF_MAX_FUNCTION_CALLS_PER_CONVERSATION,
     CONF_MAX_TOKENS,
     CONF_MODEL,
-    CONF_NUM_CTX,
     CONF_SHORTEN_TOOL_CALL_ID,
     CONF_TEMPERATURE,
     CONF_TOP_P,
@@ -34,7 +33,6 @@ from .ai_const import (
     DEFAULT_CONTEXT_TRUNCATE_STRATEGY,
     DEFAULT_MAX_FUNCTION_CALLS_PER_CONVERSATION,
     DEFAULT_MAX_TOKENS,
-    DEFAULT_NUM_CTX,
     DEFAULT_SHORTEN_TOOL_CALL_ID,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_P,
@@ -42,7 +40,7 @@ from .ai_const import (
     get_model_config,
 )
 from .ai_exceptions import FunctionNotFound, ParseArgumentsFailed, TokenLengthExceededError
-from .ai_helpers import OllamaClient
+from .ai_helpers import OpenAICompatibleClient
 
 if TYPE_CHECKING:
     from . import OasiraAIConfigEntry
@@ -63,8 +61,7 @@ def _shorten_tool_call_id(tool_call_id: str) -> str:
 def _format_structured_output(
     schema: vol.Schema, llm_api: llm.APIInstance | None
 ) -> dict[str, Any]:
-    """Format the schema to be compatible with Ollama API."""
-    # For Ollama, we use json schema format
+    """Format the schema for the OpenAI-compatible API."""
     result: dict[str, Any] = {
         "type": "object",
         "properties": {},
@@ -90,7 +87,7 @@ def _convert_content_to_param(
     chat_content: list[conversation.Content],
     shorten_tool_call_id: bool = False,
 ) -> list[dict[str, Any]]:
-    """Convert chat log content to Ollama message format."""
+    """Convert chat log content to OpenAI message format."""
     messages: list[dict[str, Any]] = []
 
     for content in chat_content:
@@ -103,7 +100,6 @@ def _convert_content_to_param(
             if content.content:
                 msg["content"] = content.content
             if content.tool_calls:
-                # Ollama uses tool_calls with function calls
                 msg["tool_calls"] = [
                     {
                         "id": _shorten_tool_call_id(tool_call.id)
@@ -133,7 +129,7 @@ def _convert_content_to_param(
 
 
 class ExtendedOpenAIBaseLLMEntity(Entity):
-    """Oasira AI base entity using Ollama."""
+    """Oasira AI base entity using the Oasira agent."""
 
     _attr_has_entity_name = True
     _attr_name = None
@@ -149,20 +145,15 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, subentry.subentry_id)},
             name=subentry.title,
-            manufacturer="Ollama",
+            manufacturer="Oasira",
             model=model,
             entry_type=dr.DeviceEntryType.SERVICE,
         )
 
     @property
-    def _client(self) -> OllamaClient:
-        """Return the Ollama client."""
-        # Preferred client location for this integration.
-        merged_client = getattr(self.entry, "oasira_ai_runtime_data", None)
-        if merged_client is not None:
-            return merged_client
-
-        # Backward-compatibility for integrations/HA versions using runtime_data.
+    def _client(self) -> OpenAICompatibleClient:
+        """Return the shared OpenAI-compatible client."""
+        # Home Assistant's supported runtime storage for config-entry clients.
         runtime_client = getattr(self.entry, "runtime_data", None)
         if runtime_client is not None:
             return runtime_client
@@ -242,15 +233,10 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
 
         messages = _convert_content_to_param(chat_log.content, shorten_tool_call_id)
 
-        # Build API parameters for Ollama
+        # Build API parameters for the OpenAI-compatible API
         api_kwargs: dict[str, Any] = {
             "model": model,
         }
-
-        # Add Ollama-specific options
-        num_ctx = options.get(CONF_NUM_CTX, DEFAULT_NUM_CTX)
-        if model_config.get("supports_num_ctx"):
-            api_kwargs["num_ctx"] = num_ctx
 
         temperature = options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)
         if model_config.get("supports_temperature"):
@@ -260,11 +246,10 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
         if model_config.get("supports_top_p"):
             api_kwargs["top_p"] = top_p
 
-        # Add tools if available (Ollama native tools support)
+        # Add tools if available
         tool_kwargs: dict[str, Any] = {}
         if function_tools:
-            # Convert OpenAI-style tools to Ollama format
-            ollama_tools = []
+            openai_tools = []
             for func_spec in function_tools:
                 tool = {
                     "type": "function",
@@ -274,8 +259,8 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
                         "parameters": func_spec["spec"].get("parameters", {}),
                     }
                 }
-                ollama_tools.append(tool)
-            tool_kwargs["tools"] = ollama_tools
+                openai_tools.append(tool)
+            tool_kwargs["tools"] = openai_tools
 
         # To prevent infinite loops, we limit the number of iterations
         for n_requests in range(MAX_TOOL_ITERATIONS):
@@ -289,7 +274,7 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
 
             _LOGGER.info("Prompt for %s: %s", model, json.dumps(messages))
 
-            # Call Ollama streaming API
+            # Call the OpenAI-compatible streaming API
             stream = await self._client.chat_stream(
                 messages=messages,
                 **api_kwargs,
@@ -351,9 +336,9 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
     ) -> AsyncGenerator[
         conversation.AssistantContentDeltaDict | conversation.ToolResultContentDeltaDict
     ]:
-        """Transform Ollama stream to Home Assistant format.
+        """Transform the model stream to Home Assistant format.
         
-        Handles both Ollama native NDJSON format and OpenAI-compatible SSE format.
+        Handles OpenAI-compatible SSE format.
         """
         current_tool_calls: dict[int, dict[str, Any]] = {}
         first_chunk = True
@@ -396,7 +381,7 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
                 # Handle content
                 content = delta.get("content", "")
                 if content:
-                    yield {"content": content}
+                    yield {"content": str(content)}
 
                 # Handle tool calls in delta
                 tool_calls = delta.get("tool_calls", [])
@@ -427,7 +412,7 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
                         self.subentry.data.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
                     )
             else:
-                # Ollama native NDJSON format
+                # Provider-native NDJSON format
                 # Check for done signal
                 if chunk.get("done"):
                     # Track usage if available
@@ -459,7 +444,7 @@ class ExtendedOpenAIBaseLLMEntity(Entity):
                 content = message.get("content", "")
                 
                 if content:
-                    yield {"content": content}
+                    yield {"content": str(content)}
 
                 # Handle tool calls
                 tool_calls = chunk.get("tool_calls") or []

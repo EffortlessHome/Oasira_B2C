@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import aiohttp
+import httpx
 
 from google.api_core.exceptions import GoogleAPIError
 from google import genai
@@ -36,7 +37,7 @@ from homeassistant.components import webhook
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.components.persistent_notification import create as notify_create
-from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
@@ -93,7 +94,6 @@ from .virtualpowersensor import VirtualPowerSensor
 
 from .binary_sensor import updateEntity
 from .ai_const import (
-    CONF_BASE_URL as AI_CONF_BASE_URL,
     CONF_TIMEOUT as AI_CONF_TIMEOUT,
     DEFAULT_CONF_BASE_URL as AI_DEFAULT_CONF_BASE_URL,
     DEFAULT_TIMEOUT as AI_DEFAULT_TIMEOUT,
@@ -242,7 +242,7 @@ class OasiraNotificationService(BaseNotificationService):
             return
 
         fcm_url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
-        _LOGGER.info("[EffortlessHome] Using FCM project: %s", project_id)
+        _LOGGER.info("[Oasira] Using FCM project: %s", project_id)
 
         session = async_get_clientsession(self.hass)
         headers = {
@@ -692,19 +692,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model=NAME,
     )
 
-    # Initialize merged AI runtime client for ai_task/conversation platforms.
+    # Initialize the OpenAI-compatible client before forwarding AI platforms.
     try:
-        # Use ollama_base_url from options if set, otherwise fall back to entry.data
-        ollama_base_url = entry.options.get("ollama_base_url") or entry.data.get(AI_CONF_BASE_URL) or AI_DEFAULT_CONF_BASE_URL
-        entry.oasira_ai_runtime_data = await get_ai_authenticated_client(
+        ai_client = await get_ai_authenticated_client(
             hass=hass,
-            base_url=ollama_base_url,
             timeout=entry.options.get(AI_CONF_TIMEOUT, AI_DEFAULT_TIMEOUT),
         )
-        hass.data.setdefault(DOMAIN, {})["ai_runtime_client"] = entry.oasira_ai_runtime_data
-    except Exception as ai_err:
-        hass.data.setdefault(DOMAIN, {}).pop("ai_runtime_client", None)
-        _LOGGER.warning("Failed to initialize merged AI client: %s", ai_err)
+        entry.runtime_data = ai_client
+        hass.data.setdefault(DOMAIN, {})["ai_runtime_client"] = ai_client
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError) as ai_err:
+        _LOGGER.error("Failed to initialize the OpenAI-compatible AI client: %s", ai_err)
+        raise ConfigEntryNotReady(
+            f"Unable to connect to the Oasira agent at {AI_DEFAULT_CONF_BASE_URL}"
+        ) from ai_err
 
     await hass.config_entries.async_forward_entry_setups(
         entry,
@@ -892,6 +892,11 @@ async def deploy_latest_config(hass: HomeAssistant):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
+
+    if hass.data.get(DOMAIN, {}).get("ai_runtime_client") is getattr(
+        entry, "runtime_data", None
+    ):
+        hass.data[DOMAIN].pop("ai_runtime_client", None)
 
     await hass.config_entries.async_unload_platforms(
         entry,

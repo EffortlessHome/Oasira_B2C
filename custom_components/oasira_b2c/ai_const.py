@@ -8,11 +8,11 @@ DEFAULT_CONVERSATION_NAME = "Oasira AI Conversation"
 DEFAULT_AI_TASK_NAME = "Oasira AI Task"
 
 CONF_BASE_URL = "base_url"
-DEFAULT_CONF_BASE_URL = ""
+DEFAULT_CONF_BASE_URL = "https://agent.oasira.ai"
 CONF_MODEL = "model"
 CONF_CHAT_MODEL = "chat_model"
-DEFAULT_MODEL = "llama3:latest"
-DEFAULT_CHAT_MODEL = "llama3:latest"
+DEFAULT_MODEL = "@cf/meta/llama-3.2-3b-instruct"
+DEFAULT_CHAT_MODEL = "@cf/meta/llama-3.2-3b-instruct"
 
 EVENT_AUTOMATION_REGISTERED = "automation_registered_via_oasira_b2c"
 EVENT_CONVERSATION_FINISHED = "oasira_b2c.conversation.finished"
@@ -309,43 +309,6 @@ DEFAULT_CONTEXT_TRUNCATE_STRATEGY = CONTEXT_TRUNCATE_STRATEGIES[0]["key"]
 CONF_ADVANCED_OPTIONS = "advanced_options"
 DEFAULT_ADVANCED_OPTIONS = False
 
-# Ollama-specific settings
-CONF_NUM_CTX = "num_ctx"
-DEFAULT_NUM_CTX = 4096
-CONF_NUM_KEEP = "num_keep"
-DEFAULT_NUM_KEEP = 0
-CONF_SEED = "seed"
-DEFAULT_SEED = 0
-CONF_NUM_GPU = "num_gpu"
-DEFAULT_NUM_GPU = 0
-CONF_MAIN_GPU = "main_gpu"
-DEFAULT_MAIN_GPU = 0
-CONF_NUM_THREAD = "num_thread"
-DEFAULT_NUM_THREAD = 0
-CONF_NUM_BATCH = "num_batch"
-DEFAULT_NUM_BATCH = 512
-CONF_REPEAT_LAST_N = "repeat_last_n"
-DEFAULT_REPEAT_LAST_N = 64
-CONF_REPEAT_PENALTY = "repeat_penalty"
-DEFAULT_REPEAT_PENALTY = 1.1
-CONF_TFS_Z = "tfs_z"
-DEFAULT_TFS_Z = 1.0
-CONF_TYPICAL_P = "typical_p"
-DEFAULT_TYPICAL_P = 1.0
-CONF_MIROSTAT = "mirostat"
-DEFAULT_MIROSTAT = 0
-CONF_MIROSTAT_TAU = "mirostat_tau"
-DEFAULT_MIROSTAT_TAU = 5.0
-CONF_MIROSTAT_ETA = "mirostat_eta"
-DEFAULT_MIROSTAT_ETA = 0.1
-CONF_PRESENCE_PENALTY = "presence_penalty"
-DEFAULT_PRESENCE_PENALTY = 0.0
-CONF_FREQUENCY_PENALTY = "frequency_penalty"
-DEFAULT_FREQUENCY_PENALTY = 0.0
-CONF_BOOST = "boost"
-DEFAULT_BOOST = True
-CONF_STOP = "stop"
-DEFAULT_STOP = ""
 CONF_BACKUP_MODEL = "backup_model"
 DEFAULT_BACKUP_MODEL = ""
 
@@ -417,13 +380,12 @@ CONF_PAYLOAD_TEMPLATE = "payload_template"
 def get_model_config(model: str) -> dict[str, bool]:
     """Get model-specific configuration based on model name.
     
-    Ollama models have different capabilities. This function provides
-    a simplified config for Ollama compatibility.
+    OpenAI-compatible models have different capabilities. This provides
+    the shared capability config for the configured agent.
     """
     return {
         "supports_top_p": True,
         "supports_temperature": True,
         "supports_max_tokens": False,
-        "supports_num_ctx": True,
         "supports_json_mode": True,
     }

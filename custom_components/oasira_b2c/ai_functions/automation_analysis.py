@@ -88,10 +88,10 @@ class AutomationAnalysisFunction(Function):
         """Execute the automation analysis function."""
         # AI is REQUIRED for this function - raise error if client not available
         if client is None:
-            _LOGGER.error("Ollama AI client is required for automation analysis")
+            _LOGGER.error("An AI client is required for automation analysis")
             return {
                 "status": "error",
-                "message": "AI client is required but not available. Please ensure Ollama is configured.",
+                "message": "AI client is required but not available. Please ensure the Oasira agent is configured.",
                 "recommendations": [],
                 "patterns": []
             }
@@ -193,7 +193,7 @@ class AutomationAnalysisFunction(Function):
             
             # Generate automation recommendations using AI (MANDATORY)
             # Always call AI even if no patterns detected - AI can suggest based on entity types
-            _LOGGER.info("Enhancing recommendations with Ollama AI")
+            _LOGGER.info("Enhancing recommendations with the Oasira agent")
             _LOGGER.info("Client object: %s, Type: %s", client, type(client))
             _LOGGER.info("Patterns to enhance: %d", len(patterns))
             _LOGGER.info("Entities to analyze: %d", len(entities_to_analyze))
@@ -832,7 +832,7 @@ class AutomationAnalysisFunction(Function):
             _LOGGER.info("No patterns found for AI enhancement - will analyze entities for suggestions")
         
         # Debug: Log entity information for troubleshooting
-        _LOGGER.info("=== OLLAMA AI DEBUGGING ===")
+        _LOGGER.info("=== OPENAI COMPATIBLE AI DEBUGGING ===")
         _LOGGER.info("Total entities available: %d", len(entities))
         _LOGGER.info("Total patterns found: %d", len(patterns))
         _LOGGER.info("Time range days: %d", time_range_days)
@@ -1038,40 +1038,40 @@ IMPORTANT:
 - For light_schedule, include light entities with times
 - Return ONLY the JSON object - no markdown code blocks or other text"""
 
-        _LOGGER.info("=== OLLAMA API CALL ===")
+        _LOGGER.info("=== OPENAI COMPATIBLE API CALL ===")
         _LOGGER.info("Prompt length: %d characters", len(prompt))
         _LOGGER.info("Prompt preview (first 300 chars): %s", prompt[:300])
-        _LOGGER.info("Calling Ollama AI for automation recommendations")
+        _LOGGER.info("Calling the Oasira agent for automation recommendations")
 
         # Validate that we have a proper client
         if client is None:
-            _LOGGER.error("Ollama client is None - cannot proceed with AI enhancement")
-            raise Exception("AI client is required but not available. Please ensure Ollama is configured.")
+            _LOGGER.error("AI client is None - cannot proceed with AI enhancement")
+            raise Exception("AI client is required but not available. Please ensure the Oasira agent is configured.")
         
         # Check if client has the required methods
         if not hasattr(client, 'list_models') or not callable(getattr(client, 'list_models', None)):
-            _LOGGER.error("Ollama client does not have list_models method. Client type: %s, Methods: %s", 
+            _LOGGER.error("AI client does not have list_models method. Client type: %s, Methods: %s",
                          type(client), dir(client))
             raise Exception("Invalid AI client - missing required methods")
         
         if not hasattr(client, 'chat') or not callable(getattr(client, 'chat', None)):
-            _LOGGER.error("Ollama client does not have chat method. Client type: %s, Methods: %s", 
+            _LOGGER.error("AI client does not have chat method. Client type: %s, Methods: %s",
                          type(client), dir(client))
             raise Exception("Invalid AI client - missing required methods")
 
         # Get available models from the client
         available_models = []
         try:
-            _LOGGER.info("Attempting to list models from Ollama client...")
+            _LOGGER.info("Attempting to list models from the AI client...")
             available_models = await client.list_models()
-            _LOGGER.info("Found %d available models on Ollama server: %s", len(available_models), [m.get("name", m.get("model", "unknown")) for m in available_models])
+            _LOGGER.info("Found %d available models on the agent: %s", len(available_models), [m.get("name", m.get("model", "unknown")) for m in available_models])
         except Exception as e:
-            _LOGGER.error("Could not get model list from Ollama: %s", e)
+            _LOGGER.error("Could not get model list from the agent: %s", e)
             _LOGGER.error("Client type: %s, Client methods: %s", type(client), dir(client))
             raise Exception("AI model unavailable")
 
         if not available_models:
-            _LOGGER.error("No models available on Ollama server")
+            _LOGGER.error("No models available on the agent")
             raise Exception("No AI models available")
 
         # Use the first available model
@@ -1080,9 +1080,9 @@ IMPORTANT:
         
         _LOGGER.info("Using model '%s' for AI enhancement", model_name)
 
-        # Call Ollama API with proper format
+        # Call the OpenAI-compatible API with the expected format
         try:
-            _LOGGER.info("Making Ollama API call with model: %s", model_name)
+            _LOGGER.info("Making OpenAI-compatible API call with model: %s", model_name)
             _LOGGER.info("Client object: %s, Type: %s", client, type(client))
             
             response = await client.chat(
@@ -1097,22 +1097,22 @@ IMPORTANT:
                 timeout=300.0,  # 5 minute timeout for complex pattern analysis
             )
             
-            _LOGGER.info("Ollama API call completed successfully")
+            _LOGGER.info("OpenAI-compatible API call completed successfully")
         except httpx.HTTPStatusError as e:
-            _LOGGER.error("Ollama API call failed with HTTP status %d: %s", e.response.status_code, e.response.text)
+            _LOGGER.error("OpenAI-compatible API call failed with HTTP status %d: %s", e.response.status_code, e.response.text)
             _LOGGER.error("Server URL: %s", getattr(client, 'base_url', 'unknown'))
             _LOGGER.error("Model: %s", model_name)
             raise Exception(f"AI API call failed: Server returned {e.response.status_code} - {e.response.text}")
         except httpx.ConnectError as e:
-            _LOGGER.error("Ollama API call failed - connection error: %s", e)
-            _LOGGER.error("Cannot connect to Ollama server at: %s", getattr(client, 'base_url', 'unknown'))
+            _LOGGER.error("OpenAI-compatible API call failed - connection error: %s", e)
+            _LOGGER.error("Cannot connect to the agent at: %s", getattr(client, 'base_url', 'unknown'))
             raise Exception(f"AI API call failed: Cannot connect to server at {getattr(client, 'base_url', 'unknown')}")
         except httpx.TimeoutException as e:
-            _LOGGER.error("Ollama API call failed - timeout: %s", e)
+            _LOGGER.error("OpenAI-compatible API call failed - timeout: %s", e)
             _LOGGER.error("Server URL: %s", getattr(client, 'base_url', 'unknown'))
             raise Exception(f"AI API call failed: Request timed out ({getattr(client, 'timeout', 120.0)}s)")
         except Exception as e:
-            _LOGGER.error("Ollama API call failed: %s", e)
+            _LOGGER.error("OpenAI-compatible API call failed: %s", e)
             _LOGGER.error("Exception type: %s", type(e).__name__)
             _LOGGER.error("Exception details: %s", str(e))
             raise Exception(f"AI API call failed: {str(e)}")
@@ -1157,7 +1157,7 @@ IMPORTANT:
                 _LOGGER.info("Processed recommendation %d: %s", i+1, rec.get("title", "Untitled"))
 
         _LOGGER.info("AI enhanced %d automation recommendations", len(enhanced_recommendations))
-        _LOGGER.info("=== OLLAMA AI DEBUGGING COMPLETE ===")
+        _LOGGER.info("=== OPENAI COMPATIBLE AI DEBUGGING COMPLETE ===")
         return enhanced_recommendations
 
     def _normalize_json(self, text: str) -> str:

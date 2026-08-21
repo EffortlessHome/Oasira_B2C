@@ -88,7 +88,7 @@ class ExtendedOpenAITaskEntity(
     ) -> None:
         """Initialize the entity."""
         super().__init__(entry, subentry)
-        # Ollama doesn't support structured image generation via API
+        # The configured text model does not support structured image generation.
         # Only GENERATE_DATA is supported for text generation
         self._attr_supported_features = (
             ai_task.AITaskEntityFeature.GENERATE_DATA
@@ -159,11 +159,11 @@ class ExtendedOpenAITaskEntity(
         options = self.subentry.data
         model = options.get(CONF_MODEL, options.get(CONF_CHAT_MODEL, DEFAULT_MODEL))
         
-        # Get Ollama-specific parameters
+        # Get OpenAI-compatible parameters
         client = self._client
         
         try:
-            # Call Ollama API
+            # Call the OpenAI-compatible API
             response = await client.chat(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
