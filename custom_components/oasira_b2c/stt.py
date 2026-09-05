@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterable
 import logging
+import re
 
 import httpx
 
@@ -96,8 +97,15 @@ class OasiraSTTEntity(SpeechToTextEntity):
 
         try:
             client = get_async_client(self.hass)
+            systemid = self.hass.data.get(DOMAIN, {}).get("systemid")
+            if not isinstance(systemid, str) or not re.fullmatch(
+                r"[a-f0-9]{32}", systemid, re.IGNORECASE
+            ):
+                _LOGGER.error("Invalid or missing systemid for Oasira speech recognition request")
+                return SpeechResult(None, SpeechResultState.ERROR)
             response = await client.post(
                 f"{DEFAULT_CONF_BASE_URL.rstrip('/')}/v1/audio/transcriptions",
+                params={"systemid": systemid},
                 files={
                     "file": (
                         "audio.wav",

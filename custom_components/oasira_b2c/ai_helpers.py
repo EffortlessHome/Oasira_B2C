@@ -107,6 +107,10 @@ class OpenAICompatibleClient:
         api_root = self.base_url if self.base_url.endswith("/v1") else f"{self.base_url}/v1"
         return f"{api_root}/{path.lstrip('/')}"
 
+    def _api_url_with_systemid(self, path: str) -> str:
+        """Build an API URL with the required system identifier."""
+        return f"{self._api_url(path)}?systemid={self._systemid()}"
+
     def _systemid(self) -> str:
         """Return the configured system identifier for API requests."""
         systemid = self.hass.data.get("oasira_b2c", {}).get("systemid")
@@ -124,7 +128,10 @@ class OpenAICompatibleClient:
         """List models exposed by the OpenAI-compatible API."""
         # Use Home Assistant's async client to avoid SSL certificate issues
         client = get_async_client(self.hass)
-        response = await client.get(self._api_url("models"), timeout=httpx.Timeout(self.timeout))
+        response = await client.get(
+            self._api_url_with_systemid("models"),
+            timeout=httpx.Timeout(self.timeout),
+        )
         response.raise_for_status()
         data = response.json()
         return [{"name": model["id"]} for model in data.get("data", [])]
@@ -169,7 +176,6 @@ class OpenAICompatibleClient:
         client = get_async_client(self.hass)
 
         payload: dict[str, Any] = {
-            "systemid": self._systemid(),
             "model": model,
             "messages": messages,
             "stream": stream,
@@ -190,7 +196,7 @@ class OpenAICompatibleClient:
 
         request_timeout = timeout if timeout is not None else self.timeout
         response = await client.post(
-            self._api_url("chat/completions"),
+            self._api_url_with_systemid("chat/completions"),
             json=payload,
             timeout=httpx.Timeout(request_timeout),
         )
@@ -226,7 +232,6 @@ class OpenAICompatibleClient:
         client = get_async_client(self.hass)
         
         payload: dict[str, Any] = {
-            "systemid": self._systemid(),
             "model": model,
             "messages": messages,
             "stream": True,
@@ -247,7 +252,7 @@ class OpenAICompatibleClient:
             payload["tool_choice"] = kwargs["tool_choice"]
         
         response = await client.post(
-            self._api_url("chat/completions"),
+            self._api_url_with_systemid("chat/completions"),
             json=payload,
             timeout=httpx.Timeout(self.timeout),
         )
@@ -334,7 +339,8 @@ class OpenAICompatibleClient:
             client = get_async_client(self.hass)
             
             response = await client.get(
-                self._api_url("models"), timeout=httpx.Timeout(self.timeout)
+                self._api_url_with_systemid("models"),
+                timeout=httpx.Timeout(self.timeout),
             )
             if response.status_code == 200:
                 return True, "Connected to Oasira agent"
@@ -343,7 +349,7 @@ class OpenAICompatibleClient:
             # health endpoint still proves that the configured service is reachable.
             if response.status_code == 404:
                 health_response = await client.get(
-                    f"{self.base_url[:-3].rstrip('/') if self.base_url.endswith('/v1') else self.base_url}/health",
+                    f"{self.base_url[:-3].rstrip('/') if self.base_url.endswith('/v1') else self.base_url}/health?systemid={self._systemid()}",
                     timeout=httpx.Timeout(self.timeout),
                 )
                 if health_response.status_code == 200:
