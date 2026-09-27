@@ -662,31 +662,6 @@ class SomeoneHomeSensor(BinarySensorEntity, RestoreEntity):
             _LOGGER.debug(
                 "[SomeoneHomeSensor] No previous state found, using default 'off'."
             )
-        self.async_on_remove(
-            self.hass.bus.async_listen(
-                "sleeping_switch_updated", self._handle_switch_event
-            )
-        )
-        _LOGGER.debug("[SomeoneHomeSensor] Added to hass, registering event listener.")
-        try:
-            self.async_on_remove(
-                self.hass.bus.async_listen(
-                    "sleeping_switch_updated", self._handle_switch_event
-                )
-            )
-        except Exception as e:
-            _LOGGER.error(f"[SomeoneHomeSensor] Error registering event listener: {e}")
-
-    async def _handle_switch_event(self, event):
-        self._state = "on" if event.data["is_on"] else "off"
-        self.async_write_ha_state()
-        try:
-            is_on = event.data.get("is_on")
-            _LOGGER.debug(f"[SomeoneHomeSensor] Received switch event: is_on={is_on}")
-            self._state = "on" if is_on else "off"
-            self.async_write_ha_state()
-        except Exception as e:
-            _LOGGER.error(f"[SomeoneHomeSensor] Error handling switch event: {e}")
 
     @property
     def name(self) -> str:
@@ -704,14 +679,9 @@ class SomeoneHomeSensor(BinarySensorEntity, RestoreEntity):
         return "mdi:home-circle-outline"
 
     def set_state(self, state: bool):
-        self._attr_is_on = state
+        self._state = "on" if state else "off"
+        _LOGGER.debug(f"[SomeoneHomeSensor] set_state called with: {state}")
         self.async_write_ha_state()
-        try:
-            _LOGGER.debug(f"[SomeoneHomeSensor] set_state called with: {state}")
-            self._attr_is_on = state
-            self.async_write_ha_state()
-        except Exception as e:
-            _LOGGER.error(f"[SomeoneHomeSensor] Error in set_state: {e}")
 
     @property
     def state(self):
