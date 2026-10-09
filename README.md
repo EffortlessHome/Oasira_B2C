@@ -81,30 +81,25 @@ Python dependencies are declared in custom_components/oasira_b2c/manifest.json a
 Add the following configuration to your Home Assistant configuration.yaml file:
 
 ```yaml
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 192.168.1.0/24 #(replace with your local network range)
-
 homeassistant:
   allowlist_external_dirs:
     - /media
-    - /config/www/oasira
+    - /config/www/oasira_b2c
 
 panel_custom:
   - name: Oasira-config-panel
     sidebar_title: Oasira Config
     sidebar_icon: mdi:alpha-e-box-outline
-    url_path: Oasira-config-panel
-    module_url: /local/Oasira/config-panel.js
+    url_path: oasira-config-panel
+    module_url: /local/oasira_b2c/config-panel.js
 
   - name: Oasira-area-panel
-    url_path: Oasira-area-panel
-    module_url: /local/Oasira/area-panel.js
+    url_path: oasira-area-panel
+    module_url: /local/oasira_b2c/area-panel.js
 
   - name: Oasira-label-panel
-    url_path: Oasira-label-panel
-    module_url: /local/Oasira/label-panel.js
+    url_path: oasira-label-panel
+    module_url: /local/oasira_b2c/label-panel.js
 ```
 
 After adding the configuration, restart Home Assistant for changes to take effect.
