@@ -1,5 +1,5 @@
-import { html, css, LitElement } from "https://cdn.jsdelivr.net/gh/lit/dist@2/core/lit-core.min.js";
-import "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js";
+import { html, css, LitElement } from "./vendor/lit-core.min.js";
+import "./vendor/Sortable.min.js";
 
 class AreaPanel extends LitElement {
   static properties = {

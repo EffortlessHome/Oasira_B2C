@@ -25,6 +25,11 @@ MAX_EVENTS_PER_DAY = 1000
 SIGNAL_TIMELINE_UPDATED = f"{DOMAIN}_timeline_updated"
 
 
+def _create_media_directory(directory: Path) -> None:
+    """Create the timeline media directory."""
+    directory.mkdir(parents=True, exist_ok=True)
+
+
 @dataclass
 
 class TimelineEvent:
@@ -83,7 +88,9 @@ class TimelineManager:
             return
 
         # Create media directory
-        self._media_dir.mkdir(parents=True, exist_ok=True)
+        await self.hass.async_add_executor_job(
+            _create_media_directory, self._media_dir
+        )
 
         # Load existing events
         data = await self._store.async_load()

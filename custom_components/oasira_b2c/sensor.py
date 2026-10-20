@@ -2,29 +2,44 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
 import re
-import json
-from typing import Optional, List
+from datetime import timedelta
+from typing import List, Optional
+from urllib.parse import quote
+
+import aiohttp
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.const import EntityCategory, SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback, async_get_platforms
 from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.util import dt as dt_util
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import async_get_platforms
 from homeassistant.helpers.event import async_track_state_change
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import async_get as async_get_dev_reg
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 
-from .const import DOMAIN, NAME
+from .const import (
+    CONF_CLOUDFLARE_ACCOUNT_ID,
+    CONF_CLOUDFLARE_API_TOKEN,
+    CONF_CLOUDFLARE_TUNNEL_ID,
+    DOMAIN,
+    NAME,
+)
 from .notificationdevice import Oasiranotificationdevice
 from .oasiraperson import OasiraPerson
 from .timeline_sensor import TimelineSensor
@@ -37,8 +52,6 @@ from .virtualpowersensor import (
 )
 
 from .personsensor import eh_personSensor
-
-from .const import DOMAIN, NAME
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +101,30 @@ async def async_setup_entry(
         [ConfigSensor("HighHumidity", hass.data[DOMAIN]["HighHumidityWarning"])]
     )
 
+    cloudflare_options = config_entry.options
+    cloudflare_api_token = cloudflare_options.get(CONF_CLOUDFLARE_API_TOKEN, "").strip()
+    cloudflare_account_id = cloudflare_options.get(
+        CONF_CLOUDFLARE_ACCOUNT_ID, ""
+    ).strip()
+    cloudflare_tunnel_id = cloudflare_options.get(
+        CONF_CLOUDFLARE_TUNNEL_ID, ""
+    ).strip()
+
+    if all((cloudflare_api_token, cloudflare_account_id, cloudflare_tunnel_id)):
+        coordinator = CloudflareTunnelCoordinator(
+            hass,
+            cloudflare_api_token,
+            cloudflare_account_id,
+            cloudflare_tunnel_id,
+        )
+        await coordinator.async_refresh()
+        async_add_entities([CloudflareTunnelStatusSensor(coordinator, config_entry)])
+    elif any((cloudflare_api_token, cloudflare_account_id, cloudflare_tunnel_id)):
+        _LOGGER.error(
+            "Cloudflare Tunnel status sensor requires an API token, account ID, "
+            "and tunnel ID. Configure all three in the Oasira integration options."
+        )
+
     powerentities = []
 
     profiles = hass.data.get(DOMAIN, {}).get("virtual_power_profiles", [])
@@ -125,6 +162,100 @@ async def async_setup_entry(
 
     async_add_entities(powerentities)
     async_add_entities([TotalEnergySensor(hass)])
+
+
+class CloudflareTunnelCoordinator(DataUpdateCoordinator):
+    """Fetch the current status of a Cloudflare Tunnel."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api_token: str,
+        account_id: str,
+        tunnel_id: str,
+    ) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            name="Cloudflare Tunnel",
+            update_interval=timedelta(seconds=60),
+        )
+        self.api_token = api_token
+        self.account_id = quote(account_id, safe="")
+        self.tunnel_id = quote(tunnel_id, safe="")
+
+    async def _async_update_data(self) -> dict[str, str | None]:
+        """Request tunnel status from Cloudflare."""
+        url = (
+            "https://api.cloudflare.com/client/v4/accounts/"
+            f"{self.account_id}/cfd_tunnel/{self.tunnel_id}"
+        )
+        session = async_get_clientsession(self.hass)
+
+        try:
+            async with session.get(
+                url,
+                headers={"Authorization": f"Bearer {self.api_token}"},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as response:
+                response.raise_for_status()
+                payload = await response.json()
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
+            raise UpdateFailed(
+                f"Unable to fetch Cloudflare Tunnel status: {err}"
+            ) from err
+
+        if not isinstance(payload, dict) or payload.get("success") is not True:
+            raise UpdateFailed(
+                "Cloudflare API did not return a successful tunnel response"
+            )
+
+        result = payload.get("result")
+        if not isinstance(result, dict) or not isinstance(result.get("status"), str):
+            raise UpdateFailed("Cloudflare API response did not include tunnel status")
+
+        return {
+            "status": result["status"],
+            "name": result.get("name"),
+            "id": result.get("id"),
+        }
+
+
+class CloudflareTunnelStatusSensor(CoordinatorEntity, SensorEntity):
+    """Report the status of a Cloudflare Tunnel."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:tunnel"
+    _attr_name = "Status"
+
+    def __init__(
+        self,
+        coordinator: CloudflareTunnelCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{config_entry.entry_id}_cloudflare_tunnel_status"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, f"cloudflare_tunnel_{config_entry.entry_id}")},
+            "name": "Cloudflare Tunnel",
+            "manufacturer": "Cloudflare",
+        }
+
+    @property
+    def native_value(self) -> str | None:
+        """Return Cloudflare's current tunnel status."""
+        data = self.coordinator.data
+        return data.get("status") if data else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        """Expose non-sensitive tunnel identifiers."""
+        data = self.coordinator.data
+        return {
+            "tunnel_name": data.get("name") if data else None,
+            "tunnel_id": data.get("id") if data else None,
+        }
 
 
 async def _load_virtual_devices(hass, file_path):

@@ -24,6 +24,15 @@ from .base import Function
 _LOGGER = logging.getLogger(__name__)
 
 
+def _get_file_metadata(file_path: Path) -> tuple[bool, bool, int | None]:
+    """Return whether a path exists, is a file, and its size when applicable."""
+    if not file_path.exists():
+        return False, False, None
+    if not file_path.is_file():
+        return True, False, None
+    return True, True, file_path.stat().st_size
+
+
 class FileFunction(Function):
     """Base class for file-related functions."""
 
@@ -165,14 +174,17 @@ class ReadFileFunction(FileFunction):
         try:
             target_path = self._resolve_path(hass, path_str, allow_dirs)
 
-            if not target_path.exists():
+            exists, is_file, file_size = await hass.async_add_executor_job(
+                _get_file_metadata, target_path
+            )
+            if not exists:
                 return {"error": f"File not found: {path_str}"}
 
-            if not target_path.is_file():
+            if not is_file:
                 return {"error": f"Not a file: {path_str}"}
 
             # Check file size
-            file_size = target_path.stat().st_size
+            assert file_size is not None
             if file_size > FILE_READ_SIZE_LIMIT:
                 return {
                     "error": f"File too large: {file_size} bytes (limit: {FILE_READ_SIZE_LIMIT})"
@@ -281,10 +293,13 @@ class EditFileFunction(FileFunction):
         try:
             target_path = self._resolve_path(hass, path_str, allow_dirs)
 
-            if not target_path.exists():
+            exists, is_file, _ = await hass.async_add_executor_job(
+                _get_file_metadata, target_path
+            )
+            if not exists:
                 return {"error": f"File not found: {path_str}"}
 
-            if not target_path.is_file():
+            if not is_file:
                 return {"error": f"Not a file: {path_str}"}
 
             # Read current content
@@ -321,4 +336,3 @@ class EditFileFunction(FileFunction):
             "path": str(target_path),
             "replacements": 1,
         }
-

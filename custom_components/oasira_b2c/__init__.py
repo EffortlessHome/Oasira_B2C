@@ -851,7 +851,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.async_create_task(refresh_firebase_token())
     hass.bus.async_listen_once("homeassistant_started", schedule_refresh_task)
 
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the integration when its options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _deploy_latest_config_sync(hass: HomeAssistant):
@@ -1820,7 +1826,6 @@ async def send_person_notification(call: ServiceCall) -> None:
         _LOGGER.info("Successfully sent notification to %s", email)
     else:
         _LOGGER.error("Failed to send notification to %s", email)
-
 
 
 

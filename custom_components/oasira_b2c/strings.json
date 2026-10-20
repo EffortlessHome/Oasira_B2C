@@ -40,6 +40,19 @@
       "reauth_successful": "Re-authentication successful"
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cloudflare Tunnel status",
+        "description": "Configure a Cloudflare API token with Account Cloudflare Tunnel Read permission, plus the Cloudflare account ID and tunnel ID. Leave all fields blank to disable the status sensor.",
+        "data": {
+          "cloudflare_api_token": "Cloudflare API token",
+          "cloudflare_account_id": "Cloudflare account ID",
+          "cloudflare_tunnel_id": "Cloudflare tunnel ID"
+        }
+      }
+    }
+  },
   "services": {
     "clean_motion_files": {
       "name": "Clean motion files",

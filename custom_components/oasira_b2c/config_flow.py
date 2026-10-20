@@ -5,10 +5,18 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
 
 from .oasira import OasiraAPIClient, OasiraAPIError
-from .const import DOMAIN, NAME
+from .const import (
+    CONF_CLOUDFLARE_ACCOUNT_ID,
+    CONF_CLOUDFLARE_API_TOKEN,
+    CONF_CLOUDFLARE_TUNNEL_ID,
+    DOMAIN,
+    NAME,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +43,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._customer_id = None
         self._system_id = None
         self._available_systems = []
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Return the options flow for Cloudflare tunnel configuration."""
+        return CloudflareOptionsFlow(config_entry)
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Handle the initial step - collect email and password for Firebase auth."""
@@ -356,3 +370,41 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
+
+class CloudflareOptionsFlow(config_entries.OptionsFlow):
+    """Configure the Cloudflare Tunnel used by the status sensor."""
+
+    def __init__(self, config_entry):
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        """Collect Cloudflare API credentials and the tunnel ID."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title="", data={**self.config_entry.options, **user_input}
+            )
+
+        options = self.config_entry.options
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_CLOUDFLARE_API_TOKEN,
+                        default=options.get(CONF_CLOUDFLARE_API_TOKEN, ""),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_CLOUDFLARE_ACCOUNT_ID,
+                        default=options.get(CONF_CLOUDFLARE_ACCOUNT_ID, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_CLOUDFLARE_TUNNEL_ID,
+                        default=options.get(CONF_CLOUDFLARE_TUNNEL_ID, ""),
+                    ): str,
+                }
+            ),
+        )

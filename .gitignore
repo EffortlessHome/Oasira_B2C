@@ -15,6 +15,8 @@ __pycache__/
 *.egg-info/
 *.spec
 .venv
+*.md
+.opencode
 
 # IDE
 .vscode/

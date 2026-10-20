@@ -62,6 +62,10 @@ The integration forwards setup to these platforms:
 - conversation
 - ai_task
 
+### Cloudflare Tunnel Status Sensor
+
+The diagnostic Cloudflare Tunnel status sensor reports the tunnel status returned by the Cloudflare API and refreshes every 60 seconds. Configure the Cloudflare API token, account ID, and tunnel ID in the Oasira integration's options. The token needs **Account > Cloudflare Tunnel > Read** permission. Leave all three options blank to disable the sensor.
+
 ## Service Reference
 
 Primary service definitions are documented in services.yaml in this folder.

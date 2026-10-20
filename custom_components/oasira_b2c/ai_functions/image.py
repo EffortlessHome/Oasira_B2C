@@ -93,9 +93,14 @@ class ImageAnalysisFunction(Function):
             # Local file
             if not hass.config.is_allowed_path(image_url):
                 raise ValueError(f"Cannot access path: {image_url}")
-            
-            if not Path(image_url).exists():
-                raise ValueError(f"File not found: {image_url}")
-            
-            with open(image_url, "rb") as f:
-                return base64.b64encode(f.read()).decode()
+
+            return await hass.async_add_executor_job(_read_image_file, image_url)
+
+
+def _read_image_file(image_path: str) -> str:
+    """Read and encode an image from disk."""
+    if not Path(image_path).exists():
+        raise ValueError(f"File not found: {image_path}")
+
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode()

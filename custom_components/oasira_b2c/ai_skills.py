@@ -188,7 +188,12 @@ class SkillManager:
 
         for skill_path, content in skills_data:
             try:
-                skill = SkillMdParser.parse(content, skill_path, self.user_skills_dir)
+                skill = await self._hass.async_add_executor_job(
+                    SkillMdParser.parse,
+                    content,
+                    skill_path,
+                    self.user_skills_dir,
+                )
                 if skill:
                     self._skills[skill.name] = skill
                     _LOGGER.debug(

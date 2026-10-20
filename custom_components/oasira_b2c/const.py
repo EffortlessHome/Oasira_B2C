@@ -24,6 +24,9 @@ VERSION = "1.1.25"
 NAME = "Oasira"
 name_internal = "oasira"
 DOMAIN = "oasira_b2c"
+CONF_CLOUDFLARE_API_TOKEN = "cloudflare_api_token"
+CONF_CLOUDFLARE_ACCOUNT_ID = "cloudflare_account_id"
+CONF_CLOUDFLARE_TUNNEL_ID = "cloudflare_tunnel_id"
 
 # Labels we want to ensure exist
 LABELS = [
