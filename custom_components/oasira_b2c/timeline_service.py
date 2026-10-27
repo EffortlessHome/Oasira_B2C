@@ -127,6 +127,51 @@ def _resolve_media_path(hass: HomeAssistant, media_path: str) -> str:
     return hass.config.path(normalized_path)
 
 
+def _prepare_camera_clip_dir(clip_dir: str) -> None:
+    """Prepare clip directory (blocking)."""
+    os.makedirs(clip_dir, exist_ok=True)
+
+
+def _read_and_remove_camera_clip(
+    full_video_path: str, remove_after_read: bool
+) -> bytes | None:
+    """Read camera clip and optionally remove it (blocking)."""
+    if not os.path.exists(full_video_path):
+        return None
+
+    with open(full_video_path, "rb") as file_handle:
+        video_data = file_handle.read()
+
+    if remove_after_read:
+        try:
+            os.remove(full_video_path)
+        except OSError:
+            _LOGGER.debug("Failed to remove temporary clip: %s", full_video_path)
+
+    return video_data
+
+
+def _prepare_and_read_camera_clip(
+    clip_dir: str, full_video_path: str | None, remove_after_read: bool
+) -> bytes | None:
+    """Prepare directory, read clip and optionally remove it in one sync call."""
+    os.makedirs(clip_dir, exist_ok=True)
+
+    if full_video_path is None or not os.path.exists(full_video_path):
+        return None
+
+    with open(full_video_path, "rb") as file_handle:
+        video_data = file_handle.read()
+
+    if remove_after_read:
+        try:
+            os.remove(full_video_path)
+        except OSError:
+            _LOGGER.debug("Failed to remove temporary clip: %s", full_video_path)
+
+    return video_data
+
+
 async def _record_camera_clip(
     hass: HomeAssistant,
     camera_entity_id: str,
@@ -141,9 +186,11 @@ async def _record_camera_clip(
     camera_slug = camera_name.replace(" ", "_")
     video_filename = f"{timestamp.strftime('%Y%m%d-%H%M%S')}_clip.mp4"
     clip_dir = hass.config.path(f"media/clips/{camera_slug}")
-    await hass.async_add_executor_job(_create_clip_directory, clip_dir)
-
     full_video_path = hass.config.path(f"media/clips/{camera_slug}/{video_filename}")
+
+    await hass.async_add_executor_job(
+        _prepare_and_read_camera_clip, clip_dir, None, remove_after_read
+    )
 
     await hass.services.async_call(
         "camera",
@@ -158,30 +205,8 @@ async def _record_camera_clip(
     )
 
     return await hass.async_add_executor_job(
-        _read_camera_clip, full_video_path, remove_after_read
+        _prepare_and_read_camera_clip, clip_dir, full_video_path, remove_after_read
     )
-
-
-def _create_clip_directory(directory: str) -> None:
-    """Create the directory for a camera clip."""
-    os.makedirs(directory, exist_ok=True)
-
-
-def _read_camera_clip(file_path: str, remove_after_read: bool) -> bytes | None:
-    """Read a recorded clip and optionally remove it."""
-    if not os.path.exists(file_path):
-        return None
-
-    with open(file_path, "rb") as file_handle:
-        video_data = file_handle.read()
-
-    if remove_after_read:
-        try:
-            os.remove(file_path)
-        except OSError:
-            _LOGGER.debug("Failed to remove temporary clip: %s", file_path)
-
-    return video_data
 
 
 
