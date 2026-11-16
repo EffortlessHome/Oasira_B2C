@@ -71,10 +71,21 @@ Python dependencies are declared in custom_components/oasira_b2c/manifest.json a
 
 ### Initial Setup
 
-1. After installation, go to Configuration > Integrations
-2. Click the "+" button and search for "Oasira"
-3. Enter your Oasira account credentials
-4. Select the system you want to configure (if you have multiple systems)
+1. In the Oasira Home app, open **Settings → Home Assistant hubs** and create an enrollment code.
+2. In Home Assistant, go to Settings > Devices & services > Add integration and search for "Oasira Home".
+3. Enter the Oasira Home server URL (default: `https://oasira-api.jermie.workers.dev`), the one-time enrollment code, and a name for this hub.
+4. The code is exchanged for a revocable hub key; there is no email/password login. If the key is later revoked, Home Assistant will ask you for a fresh code.
+
+### Device stream
+
+Once paired, the integration streams Home Assistant state to the Oasira Home backend using the hub key (no Firebase login):
+
+- An initial snapshot of all tracked entities is sent on startup.
+- State changes for `sensor`, `binary_sensor`, `switch`, `light`, `cover`, `climate`, `media_player`, `camera`, `lock`, `fan`, `humidifier` and `water_heater` entities are batched and posted to `POST /api/ingest/telemetry` every 30 seconds. The backend creates/updates devices by HA `entity_id` and records `hub_telemetry`.
+- Safety/security binary sensors (smoke, gas, heat, water, motion, door/window, vibration, tamper) also produce idempotent alerts at `POST /api/ingest/alerts`; clearing a sensor resolves the same alert by its `external_id`.
+- The hub key is sent as `Authorization: Bearer <key>`. If the backend rejects it with 401/403, streaming pauses and Home Assistant starts the re-pair flow for a fresh enrollment code.
+
+Entities owned by this integration are excluded, so the stream never feeds its own output back to the server.
 
 ### Configuration.yaml changes
 
@@ -106,8 +117,9 @@ After adding the configuration, restart Home Assistant for changes to take effec
 
 ### Required Information
 
-- **Email**: Your Oasira account email
-- **Password**: Your Oasira account password
+- **Oasira Home URL**: The Cloudflare Worker URL (without `/v1` or `/api` suffixes)
+- **Enrollment code**: The one-time code created in the Oasira Home app
+- **Hub name**: A friendly name for this Home Assistant instance
 
 ### Requirements
 

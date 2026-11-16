@@ -30,5 +30,5 @@
     "google-genai>=1.0.0",
     "gTTS>=2.5.0"
   ],
-  "version": "1.0.67"
+  "version": "1.0.69"
 }

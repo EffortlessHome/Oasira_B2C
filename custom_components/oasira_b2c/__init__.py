@@ -71,6 +71,7 @@ from .auto_area import AutoArea
 
 from .oasira import OasiraAPIClient, OasiraAPIError
 from .auth_helper import ensure_valid_id_token, refresh_firebase_id_token, safe_api_call
+from .device_stream import OasiraHomeDeviceStreamer
 
 from .const import (
     DOMAIN,
@@ -565,15 +566,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     person_notification_manager = PersonNotificationManager(hass)
     await person_notification_manager.async_load()
 
-    system_id = entry.data["system_id"]
-    customer_id = entry.data["customer_id"]
+    # Hub entries are paired with an enrollment code (no Firebase login).
+    # Legacy Firebase entries are still supported for existing installations.
+    is_hub = bool(entry.data.get("api_key"))
+    system_id = entry.data.get("system_id")
+    customer_id = entry.data.get("customer_id")
     id_token = entry.data.get("id_token")
 
-    if not system_id:
-        raise HomeAssistantError("System ID is missing in configuration.")
-
-    if not customer_id:
-        raise HomeAssistantError("Customer ID is missing in configuration.")
+    if not is_hub:
+        if not system_id:
+            raise HomeAssistantError("System ID is missing in configuration.")
+        if not customer_id:
+            raise HomeAssistantError("Customer ID is missing in configuration.")
 
     HASSComponent.set_hass(hass)
     hass.data.setdefault(DOMAIN, {})
@@ -587,74 +591,155 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "virtual_power_profiles": virtual_power_profiles,
             "id_token": id_token,
             "refresh_token": entry.data.get("refresh_token"),
+            "hub": is_hub,
         }
     )
-
-    if not await ensure_valid_id_token(hass):
-        _LOGGER.warning(
-            "Startup token validation failed; refresh or reauth may be required"
+    if is_hub:
+        hass.data[DOMAIN].update(
+            {
+                "api_url": entry.data.get("api_url"),
+                "api_key": entry.data.get("api_key"),
+                "node_id": entry.data.get("node_id"),
+                "node_name": entry.data.get("node_name"),
+                "home_id": entry.data.get("home_id"),
+                "home_name": entry.data.get("home_name"),
+            }
         )
-
-    id_token = hass.data[DOMAIN].get("id_token")
-    parsed_data = None
-    plan_features = None
-    async with OasiraAPIClient(system_id=system_id, id_token=id_token) as api_client:
-        async def _run_customer_system() -> Any:
-            _id_token = hass.data[DOMAIN].get("id_token")
-            if not _id_token:
-                raise OasiraAPIError("Missing id_token for customer/system lookup")
-            async with OasiraAPIClient(system_id=system_id, id_token=_id_token) as client:
-                return await client.get_customer_and_system()
-
+        # Confirm the hub key is still valid. A revoked key triggers the new
+        # reauth flow, which asks for a fresh enrollment code.
         try:
-            parsed_data = await safe_api_call(hass, _run_customer_system)
-        except OasiraAPIError as e:
-            if "401" in str(e):
-                _LOGGER.warning("Customer/system lookup failed after token refresh: %s", e)
-                raise ConfigEntryAuthFailed(
-                    f"Failed to fetch customer/system data after refresh: {e}"
-                ) from e
-            _LOGGER.error("Failed to fetch customer/system data: %s", e)
+            async with async_get_clientsession(hass).get(
+                f"{entry.data['api_url']}/api/ingest/me",
+                headers={"Authorization": f"Bearer {entry.data['api_key']}"},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as verify_response:
+                if verify_response.status == 401:
+                    raise ConfigEntryAuthFailed(
+                        "The Oasira hub key was revoked; pair the hub again."
+                    )
+                if verify_response.status >= 400:
+                    _LOGGER.warning(
+                        "Oasira hub verification returned HTTP %s",
+                        verify_response.status,
+                    )
+        except ConfigEntryAuthFailed:
             raise
-
-        if parsed_data is None:
-            raise HomeAssistantError("Could not retrieve customer/system data.")
-
-        try:
-            plan_features = await api_client.get_plan_features_by_system_id()
-        except Exception as pf_exc:
-            _LOGGER.warning("Failed to fetch plan features: %s", pf_exc)
-            plan_features = None
-
-        # Setup mobile_app integration with Firebase config from Oasira
-        try:
-            mobile_app_success = await setup_mobile_app_config(hass, api_client)
-            #mobile_app_success = await setup_mobile_app_integration(hass, api_client)
-            if mobile_app_success:
-                _LOGGER.info(
-                    "✅ Firebase config retrieved from Oasira and stored for Oasira services. "
-                    "Note: Home Assistant's mobile_app integration requires manual configuration.yaml setup. "
-                    "Firebase configuration is managed internally by Oasira services."
-                )
-            else:
-                _LOGGER.info(
-                    "Firebase config not available from Oasira. "
-                    "This is optional and does not affect other features."
-                )
-        except Exception as mobile_exc:
+        except (aiohttp.ClientError, TimeoutError) as verify_err:
             _LOGGER.warning(
-                "Could not setup mobile app integration: %s",
-                mobile_exc,
-                exc_info=True,
+                "Could not verify the Oasira hub key (integration will still load): %s",
+                verify_err,
             )
 
+    parsed_data = None
+    plan_features = None
+    if is_hub:
+        # Cloud features backed by the legacy Firebase API are unavailable for
+        # hub-paired entries; provide safe defaults so local features work.
+        home_name = entry.data.get("home_name") or entry.data.get("home_id") or NAME
+        parsed_data = {
+            "fullname": home_name,
+            "phonenumber": "",
+            "emailaddress": "",
+            "ha_token": "",
+            "ha_url": "",
+            "ai_key": "",
+            "ai_model": "",
+            "DaysHistoryToKeep": 30,
+            "LowTemperatureWarning": 50,
+            "HighTemperatureWarning": 85,
+            "LowHumidityWarning": 30,
+            "HighHumidityWarning": 60,
+            "address_json": "{}",
+            "systemphotolurl": "",
+            "testmode": False,
+            "additional_contacts_json": "[]",
+            "instructions_json": "[]",
+            "name": NAME,
+        }
+
+        # Stream device state / safety alerts to Oasira Home with the hub key.
+        streamer = OasiraHomeDeviceStreamer(
+            hass,
+            entry.data["api_url"],
+            entry.data["api_key"],
+            entry.data["home_id"],
+            entry.data["node_id"],
+            on_auth_failed=lambda: entry.async_start_reauth(hass),
+        )
+        hass.data[DOMAIN]["device_streamer"] = streamer
+        await streamer.async_start()
+    else:
+        if not await ensure_valid_id_token(hass):
+            _LOGGER.warning(
+                "Startup token validation failed; refresh or reauth may be required"
+            )
+
+        id_token = hass.data[DOMAIN].get("id_token")
+        async with OasiraAPIClient(system_id=system_id, id_token=id_token) as api_client:
+            async def _run_customer_system() -> Any:
+                _id_token = hass.data[DOMAIN].get("id_token")
+                if not _id_token:
+                    raise OasiraAPIError("Missing id_token for customer/system lookup")
+                async with OasiraAPIClient(system_id=system_id, id_token=_id_token) as client:
+                    return await client.get_customer_and_system()
+
+            try:
+                parsed_data = await safe_api_call(hass, _run_customer_system)
+            except OasiraAPIError as e:
+                if "401" in str(e):
+                    _LOGGER.warning("Customer/system lookup failed after token refresh: %s", e)
+                    raise ConfigEntryAuthFailed(
+                        f"Failed to fetch customer/system data after refresh: {e}"
+                    ) from e
+                _LOGGER.error("Failed to fetch customer/system data: %s", e)
+                raise
+
+            if parsed_data is None:
+                raise HomeAssistantError("Could not retrieve customer/system data.")
+
+            try:
+                plan_features = await api_client.get_plan_features_by_system_id()
+            except Exception as pf_exc:
+                _LOGGER.warning("Failed to fetch plan features: %s", pf_exc)
+                plan_features = None
+
+            # Setup mobile_app integration with Firebase config from Oasira
+            try:
+                mobile_app_success = await setup_mobile_app_config(hass, api_client)
+                if mobile_app_success:
+                    _LOGGER.info(
+                        "✅ Firebase config retrieved from Oasira and stored for Oasira services."
+                    )
+                else:
+                    _LOGGER.info("Firebase config not available from Oasira (optional).")
+            except Exception as mobile_exc:
+                _LOGGER.warning(
+                    "Could not setup mobile app integration: %s",
+                    mobile_exc,
+                    exc_info=True,
+                )
+
     hass.data[DOMAIN] = {
+        **(  # keep hub pairing details available to platforms
+            {
+                "hub": True,
+                "api_url": entry.data.get("api_url"),
+                "api_key": entry.data.get("api_key"),
+                "node_id": entry.data.get("node_id"),
+                "node_name": entry.data.get("node_name"),
+                "home_id": entry.data.get("home_id"),
+                "home_name": entry.data.get("home_name"),
+            }
+            if is_hub
+            else {}
+        ),
         "entry_id": entry.entry_id,
         "config_entry": entry,
         "token_store": hass.data[DOMAIN]["token_store"],
         "notification_tokens": hass.data[DOMAIN]["notification_tokens"],
         "virtual_power_store": virtual_power_store,
         "virtual_power_profiles": virtual_power_profiles,
+        "device_streamer": hass.data[DOMAIN].get("device_streamer"),
         "person_notification_manager": person_notification_manager,
         "fullname": parsed_data["fullname"],
         "phonenumber": parsed_data["phonenumber"],
@@ -702,9 +787,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data.setdefault(DOMAIN, {})["ai_runtime_client"] = ai_client
     except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError) as ai_err:
         _LOGGER.error("Failed to initialize the OpenAI-compatible AI client: %s", ai_err)
-        raise ConfigEntryNotReady(
-            f"Unable to connect to the Oasira agent at {AI_DEFAULT_CONF_BASE_URL}"
-        ) from ai_err
+        if not is_hub:
+            raise ConfigEntryNotReady(
+                f"Unable to connect to the Oasira agent at {AI_DEFAULT_CONF_BASE_URL}"
+            ) from ai_err
 
     await hass.config_entries.async_forward_entry_setups(
         entry,
@@ -899,6 +985,11 @@ async def deploy_latest_config(hass: HomeAssistant):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
+
+    streamer = hass.data.get(DOMAIN, {}).get("device_streamer")
+    if streamer is not None:
+        await streamer.async_stop()
+        hass.data[DOMAIN].pop("device_streamer", None)
 
     if hass.data.get(DOMAIN, {}).get("ai_runtime_client") is getattr(
         entry, "runtime_data", None
