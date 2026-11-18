@@ -1,6 +1,5 @@
 """Perform calculations based on entity states."""
 
-from __future__ import annotations
 
 from collections.abc import Callable
 from statistics import mean, median

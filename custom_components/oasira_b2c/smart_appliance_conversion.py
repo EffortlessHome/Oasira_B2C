@@ -6,7 +6,6 @@ import logging
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.helpers.typing import UndefinedType
 from homeassistant.helpers.restore_state import RestoreEntity
-from .auto_area import AutoArea
 from .const import NAME, DOMAIN
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)

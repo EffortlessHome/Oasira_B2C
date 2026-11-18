@@ -4,7 +4,7 @@ import base64
 import json
 import logging
 import time
-from typing import Any, Callable, Coroutine, TypeVar, Awaitable
+from typing import Any, Callable, TypeVar, Awaitable
 from functools import wraps
 
 from .oasira import OasiraAPIClient, OasiraAPIError

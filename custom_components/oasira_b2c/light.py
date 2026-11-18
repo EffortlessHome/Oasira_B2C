@@ -10,14 +10,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import async_get_platforms
-from homeassistant.helpers.entity import async_generate_entity_id
 
 from .auto_area import AutoArea
 from .const import LIGHT_GROUP_ENTITY_PREFIX, LIGHT_GROUP_PREFIX, DOMAIN, NAME
 from .ha_helpers import get_all_entities
-from .sensor import VirtualPowerSensor
 
 _LOGGER = logging.getLogger(__name__)
 

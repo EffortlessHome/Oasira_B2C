@@ -1,4 +1,3 @@
-from __future__ import annotations
 import logging
 from .const import DOMAIN
 from homeassistant.core import HomeAssistant
@@ -19,11 +18,13 @@ class SecurityAlarmWebhook:
         _LOGGER.info("Setting up Security Alarm Webhook")
 
         try:
+            webhook_id = webhook.async_generate_id()
+            self.hass.data.setdefault(DOMAIN, {})["security_alarm_webhook_id"] = webhook_id
             webhook.async_register(
                 self.hass,
                 DOMAIN,
                 "Security Alarm Webhook",
-                "alarmwebhook",
+                webhook_id,
                 self.handle_webhook,
             )
         except Exception as e:
@@ -58,16 +59,12 @@ class SecurityAlarmWebhook:
 
                         if alarm_id == latestalarmid:
                             event_type = event["event_type"]
-                            hass.states.async_set(
-                                DOMAIN + ".alarmlasteventtype", event_type
-                            )
+                            hass.data[DOMAIN]["alarmlasteventtype"] = event_type
 
                             if event_type == "alarm.closed":
-                                hass.states.async_set(DOMAIN + ".alarmstatus", "Closed")
+                                hass.data[DOMAIN]["alarmstatus"] = "Closed"
                             elif event_type == "alarm.status.canceled":
-                                hass.states.async_set(
-                                    DOMAIN + ".alarmstatus", "Canceled"
-                                )
+                                hass.data[DOMAIN]["alarmstatus"] = "Canceled"
 
             return web.Response(status=200, text="OK")
 

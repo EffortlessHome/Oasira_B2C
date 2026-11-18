@@ -17,16 +17,12 @@ from homeassistant.helpers.entity_registry import (
     RegistryEntry,
     async_get as async_get_entity_registry,
 )
-from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue
 from homeassistant.util import slugify
 
 from .const import (
     DOMAIN,
-    ISSUE_TYPE_INVALID_AREA,
     NAME,
     RELEVANT_DOMAINS,
-    VERSION,
-    DOMAIN,
 )
 from .ha_helpers import get_all_entities, is_valid_entity
 

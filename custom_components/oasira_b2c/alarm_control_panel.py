@@ -8,10 +8,8 @@ from homeassistant.components.alarm_control_panel import (
 
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
-
 from .alarm_common import async_cancelalarm, async_creatependingalarm
-from .const import DOMAIN, ALARM_TYPE_SECURITY, VERSION, NAME
+from .const import DOMAIN, ALARM_TYPE_SECURITY, NAME
 
 CONF_HOME_MODE_NAME = "home"
 CONF_AWAY_MODE_NAME = "away"

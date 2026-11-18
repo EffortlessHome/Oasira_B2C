@@ -5,24 +5,20 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 from datetime import timedelta
-from typing import List, Optional
+from typing import Optional
 from urllib.parse import quote
 
 import aiohttp
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback, async_get_platforms
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.util import dt as dt_util
-from homeassistant.helpers.entity import async_generate_entity_id
-from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import async_get as async_get_dev_reg
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import (
@@ -39,18 +35,14 @@ from .const import (
     DOMAIN,
     NAME,
 )
-from .notificationdevice import Oasiranotificationdevice
 from .oasiraperson import OasiraPerson
-from .timeline_sensor import TimelineSensor
 
 from .virtualpowersensor import (
     VirtualPowerSensor,
     VirtualPowerSensorAlwaysOn,
-    FakeDeviceVirtualPowerSensor,
     TotalEnergySensor,
 )
 
-from .personsensor import eh_personSensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,7 +68,6 @@ async def async_setup_entry(
     async_add_entities([AverageTemperatureSensor()])
     async_add_entities([VirtualIlluminanceSensor()])
     async_add_entities([HighTemperatureTomorrowSensor()])
-    async_add_entities([TimelineSensor()])
 
     # Add OasiraPerson sensors for tracked users
     persons = hass.data.get(DOMAIN, {}).get("persons", [])
@@ -903,7 +894,6 @@ class eh_person(SensorEntity, RestoreEntity):
 
         self._local_tracker_entity_id: Optional[str] = None
         self._remote_tracker_entity_id: Optional[str] = None
-        self._notification_devices: List[Oasiranotificationdevice] = []
 
         # Device registry
         self._device_registry = async_get_dev_reg(hass)
@@ -942,7 +932,6 @@ class eh_person(SensorEntity, RestoreEntity):
             "email": self._email,
             "local_tracker": self._local_tracker_entity_id,
             "remote_tracker": self._remote_tracker_entity_id,
-            "notification_devices": [d.unique_id for d in self._notification_devices],
         }
 
     async def async_set_local_tracker(self, entity_id: str):
@@ -961,40 +950,6 @@ class eh_person(SensorEntity, RestoreEntity):
         )
         await self.async_update_ha_state()
 
-    async def async_set_notification_devices(
-        self, hass: HomeAssistant, token: str, device_name: str, platform_name: str
-    ):
-        """Link a notification device."""
-        if not token:
-            _LOGGER.warning("[eh_person] Missing token for notification registration.")
-            return
-
-        existing = next(
-            (
-                d
-                for d in self._notification_devices
-                if d.unique_id == f"Oasira_notify_{device_name}"
-            ),
-            None,
-        )
-        if existing:
-            _LOGGER.info(
-                "[eh_person] Notification device %s already exists for %s",
-                token,
-                self._email,
-            )
-        else:
-            device = Oasiranotificationdevice(
-                self.hass, token, device_name, platform_name
-            )
-            self._notification_devices.append(device)
-            _LOGGER.info(
-                "[eh_person] Added notification device for %s: %s",
-                self._email,
-                platform_name,
-            )
-            await self.async_update_ha_state()
-
     async def async_added_to_hass(self):
         """Handle entity addition and restore previous state."""
         await super().async_added_to_hass()
@@ -1004,21 +959,11 @@ class eh_person(SensorEntity, RestoreEntity):
             self._local_tracker_entity_id = attrs.get("local_tracker")
             self._remote_tracker_entity_id = attrs.get("remote_tracker")
 
-            restored_devices = attrs.get("notification_devices", [])
-            if restored_devices:
-                self._notification_devices = [
-                    Oasiranotificationdevice(
-                        self.hass, None, dev_id, "restored"
-                    )
-                    for dev_id in restored_devices
-                ]
-
             _LOGGER.info(
-                "[eh_person] Restored state for %s: local=%s remote=%s devices=%s",
+                "[eh_person] Restored state for %s: local=%s remote=%s",
                 self._email,
                 self._local_tracker_entity_id,
                 self._remote_tracker_entity_id,
-                restored_devices,
             )
         else:
             _LOGGER.info("[eh_person] No previous state to restore for %s", self._email)

@@ -6,7 +6,6 @@ from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
 
-from . import const
 from .auth_helper import ensure_valid_id_token, safe_api_call
 from .oasira import OasiraAPIClient, OasiraAPIError
 from .const import (
@@ -548,7 +547,7 @@ async def async_getalarmstatus(hass: HomeAssistant):
             _LOGGER.debug("API response content: %s", result)
 
             alarmstatus = result["status"]
-            hass.states.async_set(DOMAIN + ".alarmstatus", alarmstatus)
+            hass.data[DOMAIN]["alarmstatus"] = alarmstatus
 
             return result
         except OasiraAPIError as e:

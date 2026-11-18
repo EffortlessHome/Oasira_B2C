@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from functools import cached_property
 import logging
-import re
-import pytz
 
-from homeassistant.util.dt import as_local
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -18,18 +15,11 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .auto_area import AutoArea
 from .const import DOMAIN, NAME
-from .medication_tracking import MedicationTrackingSwitch
-from .motion_notification import MotionNotificationsSwitch
-from .renter_occupied import RenterOccupiedSwitch
 from .sleep_mode import SleepModeSwitch
 from .smart_appliance_conversion import SmartApplianceConversionSwitch
 from datetime import timedelta
-import asyncio
-from datetime import datetime, timedelta
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import discovery
-from homeassistant.components.recorder.history import get_significant_states
-from homeassistant.const import STATE_ON, STATE_OFF
+from datetime import timedelta
+from homeassistant.core import HomeAssistant
 
 SCAN_INTERVAL = timedelta(seconds=5)
 
@@ -49,9 +39,6 @@ async def async_setup_entry(
         [
             # PresenceLockSwitch(auto_area),
             SleepModeSwitch(),
-            MotionNotificationsSwitch(),
-            MedicationTrackingSwitch("Medication Tracking"),
-            RenterOccupiedSwitch(),
             MonitoringAlarmSwitch("monitoringalarm"),
             DisableMotionLightingSwitch(),
             SmartApplianceConversionSwitch("SmartAppliance1"),

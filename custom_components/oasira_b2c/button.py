@@ -1,6 +1,5 @@
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import Entity
 from .const import DOMAIN, NAME
 
 import logging

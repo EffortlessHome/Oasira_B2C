@@ -1,21 +1,16 @@
 """constants."""
 
 import datetime
-import logging
 
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.helpers import llm
 
-import voluptuous as vol
-
-from homeassistant.helpers import config_validation as cv
 from dataclasses import dataclass
 
 from homeassistant.components.binary_sensor import (
     DOMAIN as BINARY_SENSOR_DOMAIN,
 )
 from homeassistant.components.cover import DOMAIN as COVER_DOMAIN
-from homeassistant.components.group.const import DOMAIN as GROUP_DOMAIN
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.components.sensor.const import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN

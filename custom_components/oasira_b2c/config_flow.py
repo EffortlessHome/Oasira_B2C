@@ -37,7 +37,7 @@ CONF_NODE_NAME = "node_name"
 CONF_HOME_ID = "home_id"
 CONF_HOME_NAME = "home_name"
 
-DEFAULT_API_URL = "https://oasira-api.jermie.workers.dev"
+DEFAULT_API_URL = "https://homeapi.oasira.ai"
 _URL_PATTERN = re.compile(r"^https?://[^\s/]+(?:/[^\s]*)?$", re.IGNORECASE)
 
 
