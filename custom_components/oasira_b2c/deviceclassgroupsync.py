@@ -3,7 +3,6 @@ import logging
 from homeassistant.components.group import DOMAIN as GROUP_DOMAIN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import async_get_platforms
-from homeassistant.helpers.event import async_track_state_change
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from .sensor import VirtualPowerSensor

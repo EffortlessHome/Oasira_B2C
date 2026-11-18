@@ -906,25 +906,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Start Firebase token refresh task (refresh every 50 minutes, tokens expire in 60 minutes)
     async def refresh_firebase_token():
         """Periodically refresh the Firebase ID token."""
+        # For hub-paired entries, token refresh is not needed (they use API keys)
+        if is_hub:
+            _LOGGER.debug("Hub-paired entry detected; skipping Firebase token refresh")
+            return
 
         while True:
             try:
-                _LOGGER.info("Refreshing Firebase ID token...")
+                _LOGGER.debug("Checking Firebase ID token validity...")
 
                 refresh_token = hass.data[DOMAIN].get("refresh_token")
                 if not refresh_token:
                     _LOGGER.warning(
-                        "No refresh token available - cannot refresh Firebase token"
+                        "No refresh token available - cannot refresh Firebase token; "
+                        "reauth may be required"
                     )
-                    return
+                    # Don't exit - keep trying in case token becomes available later
+                    await asyncio.sleep(5 * 60)  # Retry in 5 minutes
+                    continue
 
                 if await refresh_firebase_id_token(hass):
-                    _LOGGER.info("✅ Firebase ID token refreshed successfully")
+                    _LOGGER.debug("✅ Firebase ID token refreshed successfully")
                 else:
-                    _LOGGER.error("Failed to refresh Firebase token")
+                    _LOGGER.warning("Failed to refresh Firebase token; will retry")
 
             except OasiraAPIError as e:
-                _LOGGER.error("Failed to refresh Firebase token: %s", e)
+                _LOGGER.warning("Firebase token refresh error: %s", e)
                 # Continue trying even if refresh fails
             except Exception as e:
                 _LOGGER.exception("Unexpected error refreshing Firebase token: %s", e)
