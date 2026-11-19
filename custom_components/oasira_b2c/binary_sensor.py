@@ -11,9 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .alarm_common import async_cancelalarm, async_creatependingalarm
-from .const import ALARM_TYPE_MED_ALERT, ALARM_TYPE_MONITORING, DOMAIN, NAME
-
+from .const import DOMAIN, NAME
 _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=5)
@@ -476,11 +474,8 @@ class BinaryMedAlertSensor(BinarySensorEntity, RestoreEntity):
 
         self._state = switch_state.state
 
-        if turnOn:
-            await async_creatependingalarm(self.hass, ALARM_TYPE_MED_ALERT, None)
-        elif turnOff:
-            hass = HASSComponent.get_hass()
-            await async_cancelalarm(hass)
+        if turnOn or turnOff:
+            pass
 
 
 class MonitoringAlarm(BinarySensorEntity, RestoreEntity):
@@ -549,16 +544,8 @@ async def async_update(self) -> None:
 
     self._state = new_state
 
-    if turn_on:
-        await async_creatependingalarm(
-            self.hass,
-            ALARM_TYPE_MONITORING,
-            None,
-        )
-    elif turn_off:
-        hass = HASSComponent.get_hass()
-        if hass is not None:
-            await async_cancelalarm(hass)
+    if turn_on or turn_off:
+        pass
 
 
 class SleepingSensor(BinarySensorEntity, RestoreEntity):

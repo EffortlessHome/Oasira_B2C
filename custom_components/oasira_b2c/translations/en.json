@@ -41,10 +41,7 @@
     }
   },
   "services": {
-    "clean_motion_files": {
-      "name": "Clean motion files",
-      "description": "Clean motion files older than specified number of days"
-    },
+
     "add_label_to_entity": {
       "name": "Add label to entity",
       "description": "Add a label to an entity"

@@ -1,32 +1,4 @@
-# Service to clean motion files older than specified age
-clean_motion_files:
-  fields:
-    age:
-      description: The age of the files to remove in days. Default is 30 days.
-      example: 30
-      selector:
-        number:
-          min: 1
-          max: 365
-          unit_of_measurement: days
 
-# Add a label to an entity
-add_label_to_entity:
-  target: {}
-  fields:
-    entity_id:
-      description: The entity to update
-      example: "binary_sensor.front_door"
-      required: true
-      selector:
-        entity:
-
-    label:
-      description: The label to apply to the entity
-      example: "favorite"
-      required: true
-      selector:
-        label:
 
 # Create an alert record
 create_alert:
@@ -136,13 +108,3 @@ remove_virtual_power_device:
 deploy_latest_config:
   target: {}
 
-
-create_event:
-  target: {}
-  fields:
-    entity_id:
-      description: The entity that triggered the event
-      example: "binary_sensor.front_door"
-      required: true
-      selector:
-        entity:

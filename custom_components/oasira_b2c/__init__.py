@@ -40,15 +40,8 @@ from homeassistant.components.http import StaticPathConfig
 ATTR_TITLE = "title"
 ATTR_DATA = "data"
 
-from .alarm_common import (
-    async_cancelalarm,
-    async_confirmpendingalarm,
-    async_getalarmstatus,
-)
 from .auto_area import AutoArea
 
-from .oasira import OasiraAPIClient, OasiraAPIError
-from .auth_helper import ensure_valid_id_token, refresh_firebase_id_token, safe_api_call
 from .device_stream import OasiraHomeDeviceStreamer
 
 from .const import (
@@ -278,18 +271,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     virtual_power_profiles = await virtual_power_store.async_load() or []
 
-    # Hub entries are paired with an enrollment code (no Firebase login).
-    # Legacy Firebase entries are still supported for existing installations.
+    # This integration is now hub-only.
     is_hub = bool(entry.data.get("api_key"))
+    if not is_hub:
+        raise HomeAssistantError("Oasira now requires a hub enrollment code.")
+
     system_id = entry.data.get("system_id")
     customer_id = entry.data.get("customer_id")
-    id_token = entry.data.get("id_token")
-
-    if not is_hub:
-        if not system_id:
-            raise HomeAssistantError("System ID is missing in configuration.")
-        if not customer_id:
-            raise HomeAssistantError("Customer ID is missing in configuration.")
+    api_url = entry.data.get("api_url")
+    api_key = entry.data.get("api_key")
+    node_id = entry.data.get("node_id")
+    node_name = entry.data.get("node_name")
+    home_id = entry.data.get("home_id")
+    home_name = entry.data.get("home_name")
 
     HASSComponent.set_hass(hass)
     hass.data.setdefault(DOMAIN, {})
@@ -299,8 +293,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "config_entry": entry,
             "virtual_power_store": virtual_power_store,
             "virtual_power_profiles": virtual_power_profiles,
-            "id_token": id_token,
-            "refresh_token": entry.data.get("refresh_token"),
             "hub": is_hub,
         }
     )
@@ -376,42 +368,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         hass.data[DOMAIN]["device_streamer"] = streamer
         await streamer.async_start()
-    else:
-        if not await ensure_valid_id_token(hass):
-            _LOGGER.warning(
-                "Startup token validation failed; refresh or reauth may be required"
-            )
-
-        id_token = hass.data[DOMAIN].get("id_token")
-        async with OasiraAPIClient(system_id=system_id, id_token=id_token) as api_client:
-            async def _run_customer_system() -> Any:
-                _id_token = hass.data[DOMAIN].get("id_token")
-                if not _id_token:
-                    raise OasiraAPIError("Missing id_token for customer/system lookup")
-                async with OasiraAPIClient(system_id=system_id, id_token=_id_token) as client:
-                    return await client.get_customer_and_system()
-
-            try:
-                parsed_data = await safe_api_call(hass, _run_customer_system)
-            except OasiraAPIError as e:
-                if "401" in str(e):
-                    _LOGGER.warning("Customer/system lookup failed after token refresh: %s", e)
-                    raise ConfigEntryAuthFailed(
-                        f"Failed to fetch customer/system data after refresh: {e}"
-                    ) from e
-                _LOGGER.error("Failed to fetch customer/system data: %s", e)
-                raise
-
-            if parsed_data is None:
-                raise HomeAssistantError("Could not retrieve customer/system data.")
-
-            try:
-                plan_features = await api_client.get_plan_features_by_system_id()
-            except Exception as pf_exc:
-                _LOGGER.warning("Failed to fetch plan features: %s", pf_exc)
-                plan_features = None
-
-
     hass.data.setdefault(DOMAIN, {}).update({
         **(  # keep hub pairing details available to platforms
             {
@@ -440,8 +396,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "username": parsed_data["emailaddress"],
         "systemid": system_id,
         "customerid": customer_id,
-        "id_token": id_token,
-        "refresh_token": entry.data.get("refresh_token"),
         "DaysHistoryToKeep": parsed_data["DaysHistoryToKeep"],
         "LowTemperatureWarning": parsed_data["LowTemperatureWarning"],
         "HighTemperatureWarning": parsed_data["HighTemperatureWarning"],
@@ -474,24 +428,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as exc:  # pragma: no cover - already registered on reload
         _LOGGER.debug("Static path registration skipped: %s", exc)
 
-    for panel_name, module_file in (
-        ("config", "config-panel.js"),
-        ("area", "area-panel.js"),
-        ("label", "label-panel.js"),
-    ):
-        try:
-            await panel_custom.async_register_panel(
-                hass,
-                webcomponent_name=f"oasira-{panel_name}-panel",
-                frontend_url_path=f"oasira-{panel_name}-panel",
-                module_url=f"/oasira_b2c/{module_file}",
-                sidebar_title=f"Oasira {panel_name.title()}",
-                sidebar_icon="mdi:alpha-e-box-outline",
-                require_admin=True,
-            )
-        except Exception as exc:  # pragma: no cover - already registered on reload
-            _LOGGER.debug("Panel registration skipped for %s: %s", panel_name, exc)
-
+    
     await hass.config_entries.async_forward_entry_setups(
         entry,
         [
@@ -569,47 +506,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.bus.async_listen_once(
         EVENT_HOMEASSISTANT_STARTED, after_home_assistant_started
     )
-
-    # Start Firebase token refresh task (refresh every 50 minutes, tokens expire in 60 minutes)
-    async def refresh_firebase_token():
-        """Periodically refresh the Firebase ID token."""
-        # For hub-paired entries, token refresh is not needed (they use API keys)
-        if is_hub:
-            _LOGGER.debug("Hub-paired entry detected; skipping Firebase token refresh")
-            return
-
-        while True:
-            try:
-                _LOGGER.debug("Checking Firebase ID token validity...")
-
-                refresh_token = hass.data[DOMAIN].get("refresh_token")
-                if not refresh_token:
-                    _LOGGER.warning(
-                        "No refresh token available - cannot refresh Firebase token; "
-                        "reauth may be required"
-                    )
-                    # Don't exit - keep trying in case token becomes available later
-                    await asyncio.sleep(5 * 60)  # Retry in 5 minutes
-                    continue
-
-                if await refresh_firebase_id_token(hass):
-                    _LOGGER.debug("✅ Firebase ID token refreshed successfully")
-                else:
-                    _LOGGER.warning("Failed to refresh Firebase token; will retry")
-
-            except OasiraAPIError as e:
-                _LOGGER.warning("Firebase token refresh error: %s", e)
-                # Continue trying even if refresh fails
-            except Exception as e:
-                _LOGGER.exception("Unexpected error refreshing Firebase token: %s", e)
-            finally:
-                # Wait 50 minutes before refreshing (tokens expire in 60 minutes)
-                await asyncio.sleep(50 * 60)
-
-    # Schedule the refresh task after setup completes to avoid blocking startup
-    async def schedule_refresh_task(*_):
-        hass.async_create_task(refresh_firebase_token())
-    hass.bus.async_listen_once("homeassistant_started", schedule_refresh_task)
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True
@@ -738,16 +634,6 @@ async def add_label_to_entity(call: ServiceCall) -> None:
 @callback
 def register_services(hass: HomeAssistant) -> None:
     """Register Oasira services."""
-
-    async_register_admin_service(hass, DOMAIN, "clean_motion_files", clean_motion_files)
-
-    # Alarm/alert services only work for legacy Firebase entries, not enrolled hubs.
-    if not hass.data.get(DOMAIN, {}).get("hub"):
-        hass.services.async_register(DOMAIN, "create_event", create_event)
-        hass.services.async_register(DOMAIN, "cancel_alarm", cancel_alarm)
-        hass.services.async_register(DOMAIN, "get_alarm_status", get_alarm_status)
-        hass.services.async_register(DOMAIN, "confirm_pending_alarm", confirm_pending_alarm)
-        hass.services.async_register(DOMAIN, "create_alert", create_alert)
 
     async_register_admin_service(hass, DOMAIN, "update_entity", update_entity)
 
@@ -931,217 +817,6 @@ async def loaddevicegroups(calldata) -> None:
     """Load device groups."""
     hass = HASSComponent.get_hass()
     await async_setup_devicegroup(hass)
-
-
-async def create_event(call: ServiceCall) -> None:
-    """Create event."""
-    _LOGGER.info("create event calldata =%s", call.data)
-
-    hass = HASSComponent.get_hass()
-
-    entity_id = call.data.get("entity_id")
-    if not entity_id:
-        _LOGGER.error("entity_id is required for create_event service")
-        return
-
-    devicestate = hass.states.get(entity_id)
-    sensor_device_class = None
-    sensor_device_name = None
-
-    if devicestate and devicestate.attributes.get("friendly_name"):
-        sensor_device_name = devicestate.attributes["friendly_name"]
-
-    if devicestate and devicestate.attributes.get("device_class"):
-        sensor_device_class = devicestate.attributes["device_class"]
-
-    if sensor_device_class is not None and sensor_device_name is not None:
-        alarmstate = hass.data[DOMAIN].get("alarm_id")
-
-        if alarmstate and alarmstate != "":
-            alarmstatus = hass.data[DOMAIN].get("alarmstatus")
-
-            if alarmstatus == "ACTIVE":
-                alarmid = alarmstate
-                _LOGGER.info("alarm id =%s", alarmid)
-
-                # Call the API to create event
-                systemid = hass.data[DOMAIN].get("systemid")
-                id_token = hass.data[DOMAIN].get("id_token")
-
-                event_data = {
-                    "sensor_device_class": sensor_device_class,
-                    "sensor_device_name": sensor_device_name,
-                }
-
-                _LOGGER.info("Calling create event API with payload: %s", event_data)
-
-                if not await ensure_valid_id_token(hass):
-                    _LOGGER.error("Cannot create event: invalid or expired id_token")
-                    return None
-
-                async def _run_create_event() -> Any:
-                    id_token = hass.data[DOMAIN].get("id_token")
-                    if not id_token:
-                        raise OasiraAPIError("Missing id_token for create_event")
-                    async with OasiraAPIClient(
-                        system_id=systemid,
-                        id_token=id_token,
-                    ) as api_client:
-                        return await api_client.create_event(alarmid, event_data)
-
-                try:
-                    result = await safe_api_call(hass, _run_create_event)
-                    _LOGGER.info("API response content: %s", result)
-                    return result
-                except OasiraAPIError as e:
-                    _LOGGER.error("Failed to create event: %s", e)
-                    return None
-            return None
-        return None
-    return None
-
-
-# Keep old name for backward compatibility
-async def createevent(calldata) -> None:
-    """Create event (deprecated name)."""
-    await create_event(calldata)
-
-
-async def create_alert(call: ServiceCall) -> None:
-    """Create alert."""
-    _LOGGER.info("create alert calldata =%s", call.data)
-
-    hass = HASSComponent.get_hass()
-    alert_type = call.data.get("alert_type")
-    alert_description = call.data.get("alert_description")
-    status = call.data.get("status")
-
-    if not alert_type or not alert_description or not status:
-        _LOGGER.error(
-            "alert_type, alert_description, and status are required for create_alert service"
-        )
-        return
-
-    alert_data = {
-        "alert_type": alert_type,
-        "alert_description": alert_description,
-        "status": status,
-    }
-
-    # Call the API to create alert
-    systemid = hass.data[DOMAIN].get("systemid")
-    id_token = hass.data[DOMAIN].get("id_token")
-
-    _LOGGER.info("Calling alert API with payload: %s", alert_data)
-
-    if not await ensure_valid_id_token(hass):
-        _LOGGER.error("Cannot create alert: invalid or expired id_token")
-        return None
-
-    async def _run_create_alert() -> Any:
-        id_token = hass.data[DOMAIN].get("id_token")
-        if not id_token:
-            raise OasiraAPIError("Missing id_token for create_alert")
-        async with OasiraAPIClient(
-            system_id=systemid,
-            id_token=id_token,
-        ) as api_client:
-            return await api_client.create_alert(alert_data)
-
-    try:
-        result = await safe_api_call(hass, _run_create_alert)
-        _LOGGER.info("API response content: %s", result)
-        return result
-    except OasiraAPIError as e:
-        _LOGGER.error("Failed to create alert: %s", e)
-        return None
-
-
-# Keep old name for backward compatibility
-async def createalert(calldata) -> None:
-    """Create alert (deprecated name)."""
-    await create_alert(calldata)
-
-
-async def cancel_alarm(call: ServiceCall) -> None:
-    """Cancel alarm."""
-    hass = HASSComponent.get_hass()
-    return await async_cancelalarm(hass)
-
-
-# Keep old name for backward compatibility
-async def cancelalarm(calldata) -> None:
-    """Cancel alarm (deprecated name)."""
-    await cancel_alarm(calldata)
-
-
-async def get_alarm_status(call: ServiceCall) -> None:
-    """Get alarm status."""
-    hass = HASSComponent.get_hass()
-    return await async_getalarmstatus(hass)
-
-
-# Keep old name for backward compatibility
-async def getalarmstatus(calldata) -> None:
-    """Get alarm status (deprecated name)."""
-    await get_alarm_status(calldata)
-
-
-async def confirm_pending_alarm(call: ServiceCall) -> None:
-    """Confirm pending alarm."""
-    hass = HASSComponent.get_hass()
-    return await async_confirmpendingalarm(hass)
-
-def _clean_motion_files_sync(hass, age):
-    """Synchronous helper to delete old snapshots."""
-    snapshots_dir = "/media/snapshots"
-    if not os.path.exists(snapshots_dir):
-        _LOGGER.debug("Snapshots directory %s does not exist", snapshots_dir)
-        return
-
-    now = time.time()
-    seconds_old = int(age) * 86400
-    count = 0
-
-    try:
-        # Recursively walk through snapshots directory
-        for root, _, files in os.walk(snapshots_dir):
-            for name in files:
-                file_path = os.path.join(root, name)
-                try:
-                    file_mtime = os.path.getmtime(file_path)
-                    if now - file_mtime > seconds_old:
-                        os.remove(file_path)
-                        count += 1
-                except Exception as e:
-                    _LOGGER.error("Error deleting file %s: %s", file_path, e)
-
-        if count > 0:
-            _LOGGER.info("Successfully deleted %s old snapshots", count)
-        else:
-            _LOGGER.debug("No old snapshots found to delete")
-    except Exception as e:
-        _LOGGER.error("Error while cleaning snapshots: %s", e)
-
-
-async def clean_motion_files(call: ServiceCall) -> None:
-    """Delete snapshot files older than the specified number of days off the event loop."""
-    hass = call.hass
-    age = call.data.get("age", 30)
-
-    try:
-        age_int = int(age)
-    except (ValueError, TypeError):
-        _LOGGER.error("Invalid age value %s, using default 30 days", age)
-        age_int = 30
-
-    await hass.async_add_executor_job(_clean_motion_files_sync, hass, age_int)
-
-
-# Keep old name for backward compatibility
-async def cleanmotionfiles(calldata):
-    """Execute the command to delete old snapshots (deprecated name)."""
-    await clean_motion_files(calldata)
 
 
 async def handle_deploy_latest_config(call: ServiceCall) -> None:

@@ -8,8 +8,7 @@ from homeassistant.components.alarm_control_panel import (
 
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.core import HomeAssistant
-from .alarm_common import async_cancelalarm, async_creatependingalarm
-from .const import DOMAIN, ALARM_TYPE_SECURITY, NAME
+from .const import DOMAIN, NAME
 
 CONF_HOME_MODE_NAME = "home"
 CONF_AWAY_MODE_NAME = "away"
@@ -80,8 +79,6 @@ class AlarmControlPanel(AlarmControlPanelEntity, RestoreEntity):
         self._alarmstate = AlarmControlPanelState.DISARMED
         self.async_write_ha_state()
 
-        await async_cancelalarm(self.hass)
-
     async def async_alarm_arm_home(self, code=None):
         """Send arm home command."""
 
@@ -99,7 +96,6 @@ class AlarmControlPanel(AlarmControlPanelEntity, RestoreEntity):
 
         self._alarmstate = AlarmControlPanelState.TRIGGERED
         self.async_write_ha_state()
-        await async_creatependingalarm(self.hass, ALARM_TYPE_SECURITY, None)
 
     @property
     def icon(self):

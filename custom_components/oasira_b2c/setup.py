@@ -7,7 +7,6 @@ setup(
     author='EffortlessHome',
     packages=find_packages(),
     install_requires=[
-        'oasira==0.2.18',
         'gcal-sync==6.2.0',
         'oauth2client==4.1.3',
         'google-auth==2.28.1',

@@ -30,24 +30,8 @@
       "reauth_successful": "Hub paired successfully."
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Cloudflare Tunnel status",
-        "description": "Configure a Cloudflare API token with Account Cloudflare Tunnel Read permission, plus the Cloudflare account ID and tunnel ID. Leave all fields blank to disable the status sensor.",
-        "data": {
-          "cloudflare_api_token": "Cloudflare API token",
-          "cloudflare_account_id": "Cloudflare account ID",
-          "cloudflare_tunnel_id": "Cloudflare tunnel ID"
-        }
-      }
-    }
-  },
   "services": {
-    "clean_motion_files": {
-      "name": "Clean motion files",
-      "description": "Clean motion files older than specified number of days"
-    },
+
     "add_label_to_entity": {
       "name": "Add label to entity",
       "description": "Add a label to an entity"
