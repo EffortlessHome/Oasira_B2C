@@ -62,8 +62,6 @@ The integration forwards config entry setup to:
 - `switch`
 - `binary_sensor`
 - `sensor`
-- `cover`
-- `light`
 - `alarm_control_panel`
 - `button`
 

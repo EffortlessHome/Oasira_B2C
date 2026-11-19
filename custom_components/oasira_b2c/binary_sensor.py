@@ -33,7 +33,6 @@ async def async_setup_entry(
     async_add_entities([CarbonMonoxideGroup()])
     async_add_entities([DoorGroup()])
     async_add_entities([WindowGroup()])
-    async_add_entities([SecurityMotionGroup()])
     async_add_entities([SmartApplianceSensor("smartappliance1")])
     async_add_entities([SmartApplianceSensor("smartappliance2")])
     async_add_entities([SmartApplianceSensor("smartappliance3")])

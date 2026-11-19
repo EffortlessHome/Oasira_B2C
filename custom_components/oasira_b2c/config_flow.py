@@ -107,6 +107,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Collect the Worker URL, one-time code and a name for this hub."""
+        # Always abort if an entry already exists - remove reconfiguration option
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
@@ -162,6 +163,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
         """The hub key was revoked; pair again with a new code."""
+        # Block reauth if an entry already exists (prevents reconfiguration via reauth)
+        if self._async_current_entries():
+            return self.async_abort(reason="single_instance_allowed")
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
