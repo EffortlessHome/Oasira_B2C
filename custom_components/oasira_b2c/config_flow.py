@@ -103,7 +103,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def async_supports_options_flow(config_entry: config_entries.ConfigEntry) -> bool:
         """Both pairings can configure a tunnel."""
-        return True
+        return False
+
+    async def async_step_options_flow(self, user_input: dict | None = None) -> FlowResult:
+        """Block options flow - integration is already configured."""
+        # Always abort if an entry exists - prevent options reconfiguration
+        if self._async_current_entries():
+            return self.async_abort(reason="single_instance_allowed")
+        # Should not reach here, but return base case
+        return self.async_abort(reason="unknown")
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """Collect the Worker URL, one-time code and a name for this hub."""
