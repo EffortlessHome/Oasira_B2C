@@ -53,11 +53,9 @@ TEMPERATURE_SENSOR_ENTITY_PREFIX = "sensor.area_temperature_"
 HUMIDITY_SENSOR_PREFIX = ""
 HUMIDITY_SENSOR_ENTITY_PREFIX = "sensor.area_humidity_"
 
-COVER_GROUP_PREFIX = ""
-COVER_GROUP_ENTITY_PREFIX = "cover.area_covers_"
 
-LIGHT_GROUP_PREFIX = ""
-LIGHT_GROUP_ENTITY_PREFIX = "light.area_"
+
+
 
 INITIALIZATION_TIME = datetime.timedelta(seconds=60)
 SENSOR_ARM_TIME = datetime.timedelta(seconds=5)

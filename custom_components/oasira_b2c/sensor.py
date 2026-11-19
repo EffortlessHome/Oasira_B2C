@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
 from datetime import timedelta
-from typing import Optional
-from urllib.parse import quote
 
-import aiohttp
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
@@ -20,19 +16,8 @@ from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.device_registry import async_get as async_get_dev_reg
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
 
-
-from .const import (
-    DOMAIN,
-    NAME,
-)
-
+from .const import DOMAIN, NAME
 
 from .virtualpowersensor import (
     VirtualPowerSensor,
@@ -100,7 +85,6 @@ async def async_setup_entry(
     async_add_entities([TotalEnergySensor(hass)])
 
 
-
 async def _load_virtual_devices(hass, file_path):
     def read_file():
         with open(file_path, "r") as f:
@@ -109,9 +93,8 @@ async def _load_virtual_devices(hass, file_path):
     return await hass.async_add_executor_job(read_file)
 
 
-
 class AverageHumiditySensor(SensorEntity, RestoreEntity):
-    """Representation of a sensor."""
+    """Representation of a humidity sensor."""
 
     @property
     def device_info(self):
@@ -133,12 +116,10 @@ class AverageHumiditySensor(SensorEntity, RestoreEntity):
 
     @property
     def name(self) -> str:
-        """Return the name of the sensor."""
         return "Average Humidity Sensor"
 
     @property
     def icon(self) -> str:
-        """Return the icon of the sensor."""
         return "mdi:cloud-percent-outline"
 
     @property
@@ -147,11 +128,7 @@ class AverageHumiditySensor(SensorEntity, RestoreEntity):
         return self._state
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
+        """Fetch new state data for the sensor."""
         group_entity_id = "group.humidity_sensors_group"
 
         # Ensure the group exists
@@ -163,23 +140,18 @@ class AverageHumiditySensor(SensorEntity, RestoreEntity):
         # Get all entities in the group
         group_entities = group_state.attributes.get("entity_id", [])
 
-        # Get all entities in the group
-        group_entities = group_state.attributes.get("entity_id", [])
-
         numeric_values = []
         for entity_id in group_entities:
             entity_state = self.hass.states.get(entity_id)
             if entity_state:
                 current_state = entity_state.state
                 try:
-                    # Attempt to convert the state to a float
                     numeric_value = float(current_state)
                     numeric_values.append(numeric_value)
                     _LOGGER.debug(
                         f"Entity {entity_id} has a numeric state of {numeric_value}"
                     )
                 except ValueError:
-                    # Non-numeric state, skip
                     _LOGGER.debug(
                         f"Entity {entity_id} state '{current_state}' is not numeric."
                     )
@@ -201,7 +173,7 @@ class AverageHumiditySensor(SensorEntity, RestoreEntity):
 
 
 class AverageTemperatureSensor(SensorEntity, RestoreEntity):
-    """Representation of a sensor."""
+    """Representation of a temperature sensor."""
 
     @property
     def device_info(self):
@@ -223,12 +195,10 @@ class AverageTemperatureSensor(SensorEntity, RestoreEntity):
 
     @property
     def name(self) -> str:
-        """Return the name of the sensor."""
         return "Average Temperature Sensor"
 
     @property
     def icon(self) -> str:
-        """Return the icon of the sensor."""
         return "mdi:thermometer"
 
     @property
@@ -237,11 +207,7 @@ class AverageTemperatureSensor(SensorEntity, RestoreEntity):
         return self._state
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
+        """Fetch new state data for the sensor."""
         group_entity_id = "group.temperature_sensors_group"
 
         # Ensure the group exists
@@ -259,14 +225,12 @@ class AverageTemperatureSensor(SensorEntity, RestoreEntity):
             if entity_state:
                 current_state = entity_state.state
                 try:
-                    # Attempt to convert the state to a float
                     numeric_value = float(current_state)
                     numeric_values.append(numeric_value)
                     _LOGGER.debug(
                         f"Entity {entity_id} has a numeric state of {numeric_value}"
                     )
                 except ValueError:
-                    # Non-numeric state, skip
                     _LOGGER.debug(
                         f"Entity {entity_id} state '{current_state}' is not numeric."
                     )
@@ -288,7 +252,7 @@ class AverageTemperatureSensor(SensorEntity, RestoreEntity):
 
 
 class VirtualIlluminanceSensor(SensorEntity, RestoreEntity):
-    """Representation of a sensor."""
+    """Representation of a virtual illuminance sensor."""
 
     @property
     def device_info(self):
@@ -310,17 +274,14 @@ class VirtualIlluminanceSensor(SensorEntity, RestoreEntity):
 
     @property
     def name(self) -> str:
-        """Return the name of the sensor."""
         return "VirtualIlluminanceSensor"
 
     @property
     def icon(self) -> str:
-        """Return the icon of the sensor."""
         return "mdi:sun-wireless-outline"
 
     @property
     def device_class(self) -> str:
-        """Return the device_class of the sensor."""
         return SensorDeviceClass.ILLUMINANCE
 
     @property
@@ -329,11 +290,7 @@ class VirtualIlluminanceSensor(SensorEntity, RestoreEntity):
         return self._state
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
+        """Fetch new state data for the sensor."""
         _LOGGER.debug("In virtual illuminance sensor update")
 
         self._state = 200
@@ -360,7 +317,7 @@ class VirtualIlluminanceSensor(SensorEntity, RestoreEntity):
         if not sunset_time:
             self._state = 1000
             _LOGGER.debug("In virtual illuminance sensor update. sunset time is None.")
-            return  # Exit if sunrise time isn't available
+            return  # Exit if sunset time isn't available
 
         # Convert sunrise/set times to datetime and calculate the time difference
 
@@ -428,12 +385,10 @@ class HighTemperatureTomorrowSensor(SensorEntity, RestoreEntity):
 
     @property
     def name(self) -> str:
-        """Return the name of the sensor."""
         return "High Temperature Tomorrow Sensor"
 
     @property
     def icon(self) -> str:
-        """Return the icon of the sensor."""
         return "mdi:thermometer"
 
     @property
@@ -442,10 +397,7 @@ class HighTemperatureTomorrowSensor(SensorEntity, RestoreEntity):
         return self._state
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
+        """Fetch new state data for the sensor."""
         _LOGGER.debug("In high temp tomorrow forecast")
 
         forecasts = self.hass.services.call(
@@ -464,7 +416,3 @@ class HighTemperatureTomorrowSensor(SensorEntity, RestoreEntity):
 
         if len(forecast) > 0:
             self._state = forecast[1]["temperature"]
-
-
-
-

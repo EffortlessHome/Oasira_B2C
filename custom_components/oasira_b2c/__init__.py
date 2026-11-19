@@ -436,8 +436,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "switch",
             "binary_sensor",
             "sensor",
-            "cover",
-            "light",
+            
+            
             "alarm_control_panel",
             "button",
         ],
@@ -565,8 +565,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             "switch",
             "binary_sensor",
             "sensor",
-            "cover",
-            "light",
+            
+            
             "alarm_control_panel",
             "button",
         ],

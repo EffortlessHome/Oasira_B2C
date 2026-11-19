@@ -11,13 +11,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.typing import UndefinedType
-from homeassistant.helpers.restore_state import RestoreEntity
 
 from .auto_area import AutoArea
 from .const import DOMAIN, NAME
 from .sleep_mode import SleepModeSwitch
 from .smart_appliance_conversion import SmartApplianceConversionSwitch
-from datetime import timedelta
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
 
