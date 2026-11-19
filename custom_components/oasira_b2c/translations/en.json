@@ -2,77 +2,54 @@
   "config": {
     "step": {
       "user": {
-        "title": "Sign in to Oasira",
-        "description": "Enter your Oasira account credentials. New users can sign up on the Oasira website.",
+        "title": "Add Oasira Home hub",
+        "description": "Enter your Oasira Home server URL, then the one-time code from Settings → Home Assistant hubs in the Oasira Home app.",
         "data": {
-          "info": "Information",
-          "email": "Email",
-          "password": "Password"
+          "api_url": "Oasira Home URL",
+          "enrollment_code": "Enrollment code",
+          "node_name": "Hub name"
         }
       },
-      "select_system": {
-        "title": "Select System",
-        "description": "Multiple systems found for your account. Please select which system to configure.",
+      "reauth_confirm": {
+        "title": "Re-pair Oasira Home hub",
+        "description": "The key for hub {node} in home {home} is no longer valid. Enter a new enrollment code from the Oasira Home app.",
         "data": {
-          "system_id": "System"
-        }
-      },
-      "manual_entry": {
-        "title": "Manual Configuration",
-        "description": "Enter your Customer ID and System ID manually",
-        "data": {
-          "info": "Information",
-          "customer_id": "Customer ID",
-          "system_id": "System ID"
+          "enrollment_code": "New enrollment code"
         }
       }
     },
     "error": {
-      "missing_fields": "Please provide all required fields",
-      "invalid_auth": "Invalid email or password. Please check your credentials and try again.",
-      "cannot_connect": "Unable to connect to Oasira services. Please check your internet connection.",
-      "no_system_found": "No system found for this account. Please ensure your account is properly set up on the Oasira website",
-      "invalid_system": "Invalid system selection. Please try again.",
-      "unknown": "An unexpected error occurred. Please try again later."
+      "invalid_url": "Enter a valid HTTP or HTTPS URL (no /v1 suffix).",
+      "invalid_code": "That enrollment code is invalid, expired, or already used.",
+      "cannot_connect": "Unable to reach the Oasira Home server. Check the URL and your connection.",
+      "unknown": "An unexpected error occurred. Please try again."
     },
     "abort": {
-      "already_configured": "This Oasira system is already configured.",
-      "reauth_successful": "Re-authentication successful"
+      "single_instance_allowed": "Oasira Home is already configured. Use Configure or re-pair from the existing entry.",
+      "wrong_home": "This enrollment code belongs to a different home.",
+      "reauth_successful": "Hub paired successfully."
     }
   },
   "services": {
-
-    "add_label_to_entity": {
-      "name": "Add label to entity",
-      "description": "Add a label to an entity"
-    },
-    "create_alert": {
-      "name": "Create alert",
-      "description": "Create an alert record"
-    },
-    "confirm_pending_alarm": {
-      "name": "Confirm pending alarm",
-      "description": "Confirm a pending Oasira alarm"
-    },
-    "cancel_alarm": {
-      "name": "Cancel alarm",
-      "description": "Cancel an active Oasira alarm"
-    },
-    "get_alarm_status": {
-      "name": "Get alarm status",
-      "description": "Get the current Oasira alarm status"
-    },
     "update_entity": {
       "name": "Update entity",
       "description": "Update an entity in the entity registry with an area"
     },
+    "add_label_to_entity": {
+      "name": "Add label to entity",
+      "description": "Add a label to an entity"
+    },
+    "add_virtual_power_device": {
+      "name": "Add virtual power device",
+      "description": "Add or update a virtual power profile used for total home consumption estimation"
+    },
+    "remove_virtual_power_device": {
+      "name": "Remove virtual power device",
+      "description": "Remove a virtual power profile by entity_id or name"
+    },
     "deploy_latest_config": {
       "name": "Deploy latest config",
       "description": "Deploy latest Oasira configuration files (themes, blueprints, cards)"
-    },
-    "create_event": {
-      "name": "Create event",
-      "description": "Create an event for the active alarm"
     }
   }
 }

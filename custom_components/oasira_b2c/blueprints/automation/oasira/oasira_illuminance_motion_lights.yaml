@@ -37,13 +37,12 @@ blueprint:
           max: 1000.0
           step: 1.0
           mode: slider
-    light_target:
-      name: Light
+    area_input:
+      name: Area
+      description: The area whose lights will be controlled
       selector:
         target:
-          entity:
-            - domain:
-                - light
+          area: {}
 
     no_motion_wait:
       name: Wait time
@@ -102,12 +101,13 @@ action:
         sequence:
           - service: light.turn_on
             continue_on_error: true
-            target: !input light_target
+            target:
+              area: !input area_input
 
          # - data:
          #     scene_id: before_action_state
          #     snapshot_entities:
-         #       - !input light_target
+         #       - !input area_input
          #   action: scene.create
 
           - wait_for_trigger:
@@ -121,7 +121,6 @@ action:
           #- service: light.turn_on
           #  data:
           #    brightness_pct: 20
-          #  target: !input light_target
 
           #- delay: "00:00:05"
 
@@ -131,7 +130,8 @@ action:
 
           - service: homeassistant.turn_off
             continue_on_error: true
-            target: !input light_target
+            target:
+              area: !input area_input
 
           - choose: []
             continue_on_error: true

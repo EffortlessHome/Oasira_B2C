@@ -18,6 +18,56 @@ blueprint:
     For questions and suggestions, please use [this thread in Home Assistant Community portal](https://community.home-assistant.io/t/scheduled-auto-update-for-home-assistant/459281).
   domain: automation
   input:
+    days_keep:
+      name: Days History to Keep
+      description: Number of days history to retain
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 365
+          step: 1
+          mode: slider
+    low_temp_warn:
+      name: Low Temperature Warning
+      description: Low temperature warning threshold
+      default: 50
+      selector:
+        number:
+          min: -50
+          max: 100
+          step: 1
+          mode: slider
+    high_temp_warn:
+      name: High Temperature Warning
+      description: High temperature warning threshold
+      default: 85
+      selector:
+        number:
+          min: -50
+          max: 100
+          step: 1
+          mode: slider
+    low_humidity_warn:
+      name: Low Humidity Warning
+      description: Low humidity warning threshold
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
+    high_humidity_warn:
+      name: High Humidity Warning
+      description: High humidity warning threshold
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
     when_section:
       name: When (Schedule, etc.)
       icon: mdi:calendar

@@ -15,14 +15,12 @@ blueprint:
           domain:
             - binary_sensor
           multiple: false
-    light_target:
-      name: Light
+    area_input:
+      name: Area
+      description: The area whose lights will be controlled
       selector:
         target:
-          entity:
-            - domain:
-                - light
-                - switch
+          area: {}
     light_timeout:
       name: Light Timeout
       description: How long to let the light stay on after opening the door.
@@ -93,7 +91,8 @@ action:
         sequence:
           - service: light.turn_on
             continue_on_error: true
-            target: !input light_target
+            target:
+              area: !input area_input
           - delay:
               hours: 0
               minutes: 0
@@ -102,7 +101,8 @@ action:
             continue_on_error: true
           - service: homeassistant.turn_off
             continue_on_error: true
-            target: !input light_target
+            target:
+              area: !input area_input
           - choose: []
             continue_on_error: true
             default: !input additional_actions            

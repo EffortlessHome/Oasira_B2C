@@ -1,123 +1,117 @@
-# Oasira Home Integration
+# Oasira Home Integration (`oasira_b2c`)
 
-This directory contains the Home Assistant custom integration for Oasira Home.
+This directory contains the **Oasira B2C** Home Assistant custom integration. It connects a local Home Assistant instance to the **Oasira Home service** ([https://home.oasira.ai](https://home.oasira.ai)) so Home Assistant devices, state, and automations can power the Oasira Home experience across web, mobile, and TV apps.
 
-The integration combines cloud-backed Oasira system data with local Home Assistant automation services, conversation features, AI task features, timeline event workflows, and deployable UI resources.
+## Overview and Purpose
+
+The Oasira B2C integration is the Home Assistant-side component responsible for integrating with Oasira Home and enabling a connected, user-friendly smart home experience beyond Home Assistant’s native UI.
+
+**Main functions**
+
+- **Device and platform integration bridge:** Makes Home Assistant devices/entities available to Oasira Home workflows by streaming supported state and safety-related events to the Oasira Home ingest APIs.
+- **Oasira Home service connectivity:** Maintains a hub-paired, authenticated connection to Oasira Home for cloud-backed experiences used by the Oasira Home website, mobile apps, and TV apps.
+- **Notification and event delivery:** Provides `notify.oasira` and alert/state ingestion so Home Assistant automations and device activity can surface in Oasira Home experiences.
+- **Local HA capabilities:** Exposes Home Assistant platforms, domain services, and webhook endpoints that support pairing, entity organization, presence/location updates, alarm/webhook handling, and local automation use cases.
+
+**How it fits into the ecosystem**
+
+- Home Assistant remains the local automation and device integration engine.
+- Oasira B2C securely links that local system to Oasira Home using an enrollment-code-based hub pairing and revocable API key.
+- Oasira Home services/apps consume synchronized data and provide an easier, more powerful, and more consistent smart home experience across supported clients (web, mobile, TV).
+
+This integration pairs using a one-time enrollment code, verifies the hub key, streams tracked device telemetry and supported safety alerts to Oasira Home ingest endpoints, and registers `notify.oasira` for Home Assistant automations.
 
 ## Functional Scope
 
-### Security and Alarm Operations
+### Hub Pairing and Cloud Connectivity
 
-- Multi-mode alarm workflows and alert management
-- Pending alarm confirmation and alarm cancellation services
-- Alarm status query services
-- Event creation services tied to active alarms
+- Config flow enrollment via `POST {api_url}/api/ingest/enroll` (one-time code → hub API key)
+- Hub key verification on startup (`GET {api_url}/api/ingest/me`) with reauth when revoked/unauthorized
+- Hub-paired operation (no Firebase/email-password login flow in this integration)
 
-### Area and Entity Management
+### Device and Alert Streaming (Oasira Home ingest)
 
-- Entity-to-area update service
-- Label assignment service for entity organization
-- Integration startup label bootstrap for Favorite and NotForSecurityMonitoring
+- Streams tracked Home Assistant entity state to `POST {api_url}/api/ingest/telemetry` (batched, periodic flush, initial snapshot on start)
+- Converts safety/security binary sensor activity to idempotent alerts via `POST {api_url}/api/ingest/alerts` and resolves matching alerts when cleared
+- Uses `Authorization: Bearer <hub api_key>`; `401/403` triggers reauth
+- Excludes entities owned by this integration from the outbound stream
 
-### Notifications and Mobile Support
+### Notifications
 
-- Firebase configuration retrieval service for mobile app integration
-- Push token webhook flows and notification fanout support
+- Registers `notify.oasira` (notify domain service) backed by the Oasira Home API
+- Sends notifications to `POST {api_url}/api/ingest/notifications` with hub auth
+- Accepts `message` (required), optional `title`, and optional `data` (including `data.kind`: `security|energy|automation|device`)
 
-### Timeline and Camera Event Services
+### Local Services and Automation Helpers
 
-- Capture camera snapshots and optionally persist timeline events
-- Record short camera clips and attach timeline metadata
-- Create person detection timeline events from supplied media
-- Query timeline events by camera, area, date range, and type
-- Update and delete timeline events
+- Entity/organization services: `update_entity`, `add_label_to_entity`
+- Virtual power profile services: `add_virtual_power_device`, `remove_virtual_power_device` (persisted in HA storage and reloaded into integration state)
+- Deployment service: `deploy_latest_config` (copies packaged themes/blueprints/www assets into HA config paths, preserving existing user-edited files)
+- Startup/bootstrap behavior includes label creation (`Favorite`, `NotForSecurityMonitoring`) and motion/security grouping setup
 
-### AI Capabilities
+### Webhooks and Runtime Components
 
-- Conversation platform integration
-- AI task platform integration
-- Runtime connection to Ollama using configurable base URL and model
-- AI services:
-	- analyze_image
-	- scan_home_automation_patterns
-
-### Automation Assets and UX
-
-- Blueprint package under blueprints/automation with Oasira scenarios
-- Theme package under themes/
-- Frontend resources under www/oasira_b2c/
-- Deployment service to copy packaged assets into Home Assistant config paths
+- Registers a location update webhook (`/api/webhook/<id>`) that creates/updates device tracker entities from incoming location payloads
+- Sets up a security alarm webhook handler
+- Provides alarm control panel and other platform entities for Oasira-managed functionality
 
 ## Home Assistant Platforms
 
-The integration forwards setup to these platforms:
+The integration forwards config entry setup to:
 
-- switch
-- binary_sensor
-- sensor
-- cover
-- light
-- alarm_control_panel
-- button
-- conversation
-- ai_task
+- `switch`
+- `binary_sensor`
+- `sensor`
+- `cover`
+- `light`
+- `alarm_control_panel`
+- `button`
 
-### Cloudflare Tunnel Status Sensor
+## Services
 
-The diagnostic Cloudflare Tunnel status sensor reports the tunnel status returned by the Cloudflare API and refreshes every 60 seconds. Configure the Cloudflare API token, account ID, and tunnel ID in the Oasira integration's options. The token needs **Account > Cloudflare Tunnel > Read** permission. Leave all three options blank to disable the sensor.
+### `notify.oasira` (notify domain)
 
-## Service Reference
+Sends a notification through the Oasira Home API.
 
-Primary service definitions are documented in services.yaml in this folder.
+- **Required:** `message`
+- **Optional:** `title`, `data`
+- **Example:**
 
-Operational services include:
+```yaml
+service: notify.oasira
+data:
+  title: "Front door"
+  message: "Motion detected"
+  data:
+    kind: security
+```
 
-- clean_motion_files
-- create_event
-- cancel_alarm
-- get_alarm_status
-- confirm_pending_alarm
-- create_alert
-- update_entity
-- deploy_latest_config
-- add_label_to_entity
+### `oasira_b2c.*` domain services
 
-Timeline services include:
+Defined in `services.yaml` in this folder:
 
-- create_timeline_event
-- summarize_timeline_period
+- `update_entity`
+- `add_label_to_entity`
+- `add_virtual_power_device`
+- `remove_virtual_power_device`
+- `deploy_latest_config`
 
+## Packaged Assets
 
-AI services include:
-
-- analyze_image
-- scan_home_automation_patterns
-
-## Installation
-
-### HACS
-
-1. Add this repository as a custom repository in HACS
-2. Install Oasira Home
-3. Restart Home Assistant
-4. Add the integration from Settings > Devices and Services
-
-### Manual
-
-1. Copy this folder to custom_components/oasira_b2c
-2. Restart Home Assistant
-3. Add Oasira Home from Settings > Devices and Services
+- `blueprints/` automation and script blueprints
+- `themes/` theme assets
+- `www/oasira_b2c/` frontend resources
+- `deploy_latest_config` copies missing files from these packages into Home Assistant config directories without overwriting existing files
 
 ## Requirements
 
 - Home Assistant with config flow support
-- Recorder integration enabled
-- Network access to Oasira cloud endpoints
-- Network access to configured Ollama endpoint for AI features
+- Network access to the configured Oasira Home API endpoint
+- Recorder enabled if required by dependent HA components/features in your installation
 
-Python dependencies are declared in manifest.json and installed automatically by Home Assistant.
+Dependencies are declared in `manifest.json` and installed by Home Assistant.
 
 ## Support
 
-- Issues: https://github.com/EffortlessHome/Oasira/issues
+- Issues: https://github.com/EffortlessHome/Oasira_B2C/issues
 - Website: https://www.oasira.ai/

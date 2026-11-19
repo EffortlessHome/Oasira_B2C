@@ -61,22 +61,6 @@ async def async_setup_entry(
     async_add_entities([VirtualIlluminanceSensor()])
     async_add_entities([HighTemperatureTomorrowSensor()])
 
-    async_add_entities(
-        [ConfigSensor("DaysHistoryToKeep", hass.data[DOMAIN]["DaysHistoryToKeep"])]
-    )
-    async_add_entities(
-        [ConfigSensor("LowTemperature", hass.data[DOMAIN]["LowTemperatureWarning"])]
-    )
-    async_add_entities(
-        [ConfigSensor("HighTemperature", hass.data[DOMAIN]["HighTemperatureWarning"])]
-    )
-    async_add_entities(
-        [ConfigSensor("LowHumidity", hass.data[DOMAIN]["LowHumidityWarning"])]
-    )
-    async_add_entities(
-        [ConfigSensor("HighHumidity", hass.data[DOMAIN]["HighHumidityWarning"])]
-    )
-
     powerentities = []
 
     profiles = hass.data.get(DOMAIN, {}).get("virtual_power_profiles", [])
@@ -403,6 +387,8 @@ class VirtualIlluminanceSensor(SensorEntity, RestoreEntity):
                 self._state = 600
             elif secondssincesunrise <= 2000:
                 self._state = 800
+            elif secondssincesunrise <= 2700:
+                self._state = 1000
             else:
                 self._state = 1000
         elif secondsuntilsunset <= 500:
@@ -413,6 +399,8 @@ class VirtualIlluminanceSensor(SensorEntity, RestoreEntity):
             self._state = 600
         elif secondsuntilsunset <= 2000:
             self._state = 800
+        elif secondsuntilsunset <= 2700:
+            self._state = 1000
         else:
             self._state = 1000
 
@@ -478,37 +466,5 @@ class HighTemperatureTomorrowSensor(SensorEntity, RestoreEntity):
             self._state = forecast[1]["temperature"]
 
 
-class ConfigSensor(SensorEntity, RestoreEntity):
-    @property
-    def device_info(self):
-        """Return information about the device."""
-        return {
-            "identifiers": {(DOMAIN, NAME)},
-            "name": NAME,
-            "manufacturer": NAME,
-        }
 
-    def __init__(self, key, state):
-        self._key = key
-        self._state = state
-
-    @property
-    def name(self):
-        return f"Config {self._key}"
-
-    @property
-    def state(self):
-        return self._state
-
-    @property
-    def unique_id(self):
-        return f"config_sensor_{self._key.lower()}"
-
-    @property
-    def device_class(self):
-        return None
-
-    @property
-    def should_poll(self):
-        return False
 

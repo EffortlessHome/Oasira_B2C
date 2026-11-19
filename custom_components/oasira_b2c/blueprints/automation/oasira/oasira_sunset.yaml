@@ -6,16 +6,12 @@ blueprint:
   domain: automation
   author: Oasira
   input:
-    lighttoturnon:
-      name: Lights to turn on
-      description: Turn on these lights (optional)
+    areaton:
+      name: Area to turn on
+      description: Turn on lights in this area (optional)
       default: []
       selector:
-        entity:
-          filter:
-            - domain:
-                - light
-          multiple: true
+        area: {}
     plugtoturnon:
       name: Plugs to turn on
       description: Turn on these plugs (optional)
@@ -55,7 +51,7 @@ action:
   - service: light.turn_on
     continue_on_error: true
     target:
-      entity_id: !input lighttoturnon
+      area: !input areaton
   - service: switch.turn_on
     continue_on_error: true
     target:

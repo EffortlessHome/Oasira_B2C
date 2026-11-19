@@ -21,6 +21,7 @@ import voluptuous as vol
 from homeassistant.components import panel_custom
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.components.notify import ATTR_DATA, ATTR_MESSAGE, ATTR_TITLE
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.components import webhook
 from homeassistant.helpers import entity_platform
@@ -52,8 +53,8 @@ from .const import (
 
 
 from .deviceclassgroupsync import async_setup_devicegroup
-from .MotionSensorGrouper import MotionSensorGrouper
-from .SecurityAlarmWebhook import SecurityAlarmWebhook
+
+
 
 
 
@@ -446,12 +447,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     location_webhook_id = hass.data.get(DOMAIN, {}).get("location_webhook_id")
     if location_webhook_id:
         webhook.async_unregister(hass, location_webhook_id)
-    security_webhook_id = hass.data.get(DOMAIN, {}).get("security_alarm_webhook_id")
-    if security_webhook_id:
-        webhook.async_unregister(hass, security_webhook_id)
-
-    security_webhook = SecurityAlarmWebhook(hass)
-    await SecurityAlarmWebhook.async_setup_webhook(security_webhook)
 
     webhook_id = webhook.async_generate_id()
     hass.data.setdefault(DOMAIN, {})["location_webhook_id"] = webhook_id
@@ -467,6 +462,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("[Oasira] Webhook registered: %s", webhook_id)
 
     register_services(hass)
+    await async_setup_notification_service(hass)
 
     # Removed deploy_latest_config(hass) from initialization. Now triggered by button entity.
     label_registry = lr.async_get(hass)
@@ -481,15 +477,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def after_home_assistant_started(event):
         """Call this function after Home Assistant has started."""
-        # Create motion sensor groups
-        try:
-            grouper = MotionSensorGrouper(hass)
-            await grouper.create_sensor_groups()
-            await grouper.create_security_sensor_group()
-        except Exception as e:
-            _LOGGER.warning("Failed to create motion sensor groups: %s", e)
-
-
         await loaddevicegroups(None)
 
         # TODO: Update the link below with the actual add-on slug
@@ -584,6 +571,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             "button",
         ],
     )
+
+    if hass.services.has_service("notify", "oasira"):
+        hass.services.async_remove("notify", "oasira")
+
     # Remove backward-compatible service aliases if present
     if hass.services.has_service(DOMAIN, "create_alert_service"):
         hass.services.async_remove(DOMAIN, "create_alert_service")
@@ -591,9 +582,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     location_webhook_id = hass.data.get(DOMAIN, {}).get("location_webhook_id")
     if location_webhook_id:
         webhook.async_unregister(hass, location_webhook_id)
-    security_webhook_id = hass.data.get(DOMAIN, {}).get("security_alarm_webhook_id")
-    if security_webhook_id:
-        webhook.async_unregister(hass, security_webhook_id)
 
     return True
 
@@ -824,6 +812,101 @@ async def handle_deploy_latest_config(call: ServiceCall) -> None:
     hass = HASSComponent.get_hass()
 
     await deploy_latest_config(hass)
+
+
+async def async_setup_notification_service(hass: HomeAssistant) -> None:
+    """Register the notify.oasira service backed by the Oasira Home API."""
+    domain_data = hass.data.get(DOMAIN, {})
+    api_url = domain_data.get("api_url")
+    api_key = domain_data.get("api_key")
+
+    if not api_url or not api_key:
+        _LOGGER.debug(
+            "Oasira Home API credentials not available; notify.oasira not registered"
+        )
+        return
+
+    async def handle_notify_service(call: ServiceCall) -> None:
+        """Send a notification through the Oasira Home API."""
+        current = hass.data.get(DOMAIN, {})
+        current_api_url = current.get("api_url")
+        current_api_key = current.get("api_key")
+        if not current_api_url or not current_api_key:
+            raise HomeAssistantError(
+                "Oasira Home API credentials are unavailable for notify.oasira"
+            )
+
+        message = call.data.get(ATTR_MESSAGE) or call.data.get("message") or ""
+        title = call.data.get(ATTR_TITLE) or call.data.get("title")
+        data = call.data.get(ATTR_DATA) or call.data.get("data") or {}
+        if not isinstance(data, dict):
+            data = {"value": data}
+
+        kind = str(data.get("kind") or "device").strip().lower()
+        if kind not in {"security", "energy", "automation", "device"}:
+            kind = "device"
+
+        payload: dict[str, Any] = {
+            "title": str(title) if title is not None else "Oasira",
+            "message": str(message),
+            "body": str(message),
+            "kind": kind,
+            "data": data,
+        }
+
+        node_id = current.get("node_id")
+        home_id = current.get("home_id")
+        if node_id:
+            payload["node_id"] = node_id
+        if home_id:
+            payload["home_id"] = home_id
+
+        session = async_get_clientsession(hass)
+        endpoint = f"{current_api_url.rstrip('/')}/api/ingest/notifications"
+        headers = {
+            "Authorization": f"Bearer {current_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with session.post(
+                endpoint,
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as response:
+                if response.status in (401, 403):
+                    entry = current.get("config_entry")
+                    if entry is not None:
+                        entry.async_start_reauth(hass)
+                    raise HomeAssistantError(
+                        "Oasira Home rejected the hub key; re-pair the hub to send notifications"
+                    )
+                if response.status >= 400:
+                    body = await response.text()
+                    raise HomeAssistantError(
+                        f"Oasira Home notification failed (HTTP {response.status}): {body}"
+                    )
+        except aiohttp.ClientError as err:
+            raise HomeAssistantError(
+                f"Could not reach Oasira Home API: {err}"
+            ) from err
+
+    if not hass.services.has_service("notify", "oasira"):
+        hass.services.async_register(
+            "notify",
+            "oasira",
+            handle_notify_service,
+            schema=vol.Schema(
+                {
+                    vol.Required(ATTR_MESSAGE): cv.string,
+                    vol.Optional(ATTR_TITLE): cv.string,
+                    vol.Optional(ATTR_DATA): dict,
+                },
+                extra=vol.ALLOW_EXTRA,
+            ),
+        )
+        _LOGGER.info("Registered notify.oasira service using Oasira Home API")
 
 
 # sampledata

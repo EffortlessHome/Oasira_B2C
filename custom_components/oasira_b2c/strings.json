@@ -31,38 +31,25 @@
     }
   },
   "services": {
-
-    "add_label_to_entity": {
-      "name": "Add label to entity",
-      "description": "Add a label to an entity"
-    },
-    "create_alert": {
-      "name": "Create alert",
-      "description": "Create an alert record"
-    },
-    "confirm_pending_alarm": {
-      "name": "Confirm pending alarm",
-      "description": "Confirm a pending Oasira alarm"
-    },
-    "cancel_alarm": {
-      "name": "Cancel alarm",
-      "description": "Cancel an active Oasira alarm"
-    },
-    "get_alarm_status": {
-      "name": "Get alarm status",
-      "description": "Get the current Oasira alarm status"
-    },
     "update_entity": {
       "name": "Update entity",
       "description": "Update an entity in the entity registry with an area"
     },
+    "add_label_to_entity": {
+      "name": "Add label to entity",
+      "description": "Add a label to an entity"
+    },
+    "add_virtual_power_device": {
+      "name": "Add virtual power device",
+      "description": "Add or update a virtual power profile used for total home consumption estimation"
+    },
+    "remove_virtual_power_device": {
+      "name": "Remove virtual power device",
+      "description": "Remove a virtual power profile by entity_id or name"
+    },
     "deploy_latest_config": {
       "name": "Deploy latest config",
       "description": "Deploy latest Oasira configuration files (themes, blueprints, cards)"
-    },
-    "create_event": {
-      "name": "Create event",
-      "description": "Create an event for the active alarm"
     }
   }
 }

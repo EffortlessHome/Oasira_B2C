@@ -30,16 +30,12 @@ from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
-TRACKED_DOMAINS = {
-    "sensor", "binary_sensor", "switch", "light", "cover", "climate",
-    "media_player", "camera", "lock", "fan", "humidifier", "water_heater",
-}
 ALERT_CLASSES = {
     "smoke", "gas", "heat", "moisture", "water", "problem", "safety",
-    "motion", "door", "window", "opening", "vibration", "tamper",
+    "door", "window", "opening", "vibration", "tamper",
 }
 HIGH_SEVERITY_CLASSES = {"smoke", "gas", "heat", "moisture", "water", "safety"}
-MEDIUM_SEVERITY_CLASSES = {"motion", "door", "window", "opening", "vibration", "tamper"}
+MEDIUM_SEVERITY_CLASSES = {"door", "window", "opening", "vibration", "tamper"}
 TRUE_STATES = {"on", "open", "home", "unlocked", "detected", "problems", "true", "motion"}
 FALSE_STATES = {"off", "closed", "away", "locked", "clear", "false", "no_motion"}
 
@@ -53,7 +49,12 @@ def _now_iso() -> str:
 
 
 class OasiraHomeDeviceStreamer:
-    """Batch device state into telemetry/alerts for the Oasira Home backend."""
+    """Batch device state into telemetry/alerts for the Oasira Home backend.
+
+    Currently only binary_sensor entities are streamed; safety/alert events
+    are always emitted for relevant classes. All other entity domains are
+    excluded to simplify the stream.
+    """
 
     def __init__(
         self,
@@ -117,7 +118,8 @@ class OasiraHomeDeviceStreamer:
             self._process_state(new_state, initial=False)
 
     def _is_tracked(self, entity_id: str) -> bool:
-        if entity_id.split(".", 1)[0] not in TRACKED_DOMAINS:
+        # Only stream binary_sensor entities (includes all safety sensors).
+        if not entity_id.startswith("binary_sensor."):
             return False
         entry = er.async_get(self._hass).async_get(entity_id)
         if entry is not None:
@@ -215,6 +217,8 @@ class OasiraHomeDeviceStreamer:
                 if isinstance(device_class, str) and device_class.strip()
                 else entity_id.split(".", 1)[0]
             )
+            if alert_type in ("motion", "occupancy"):
+                return
             if alert_type not in ALERT_CLASSES and not entity_id.startswith("binary_sensor."):
                 return
             occurred_at = state.last_changed.isoformat() if isinstance(state.last_changed, datetime) else _now_iso()
