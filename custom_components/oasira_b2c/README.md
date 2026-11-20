@@ -11,7 +11,7 @@ The Oasira B2C integration is the Home Assistant-side component responsible for 
 - **Device and platform integration bridge:** Makes Home Assistant devices/entities available to Oasira Home workflows by streaming supported state and safety-related events to the Oasira Home ingest APIs.
 - **Oasira Home service connectivity:** Maintains a hub-paired, authenticated connection to Oasira Home for cloud-backed experiences used by the Oasira Home website, mobile apps, and TV apps.
 - **Notification and event delivery:** Provides `notify.oasira` and alert/state ingestion so Home Assistant automations and device activity can surface in Oasira Home experiences.
-- **Local HA capabilities:** Exposes Home Assistant platforms, domain services, and webhook endpoints that support pairing, entity organization, presence/location updates, alarm/webhook handling, and local automation use cases.
+- **Local HA capabilities:** Exposes Home Assistant platforms and domain services that support pairing, entity organization, and local automation use cases.
 
 **How it fits into the ecosystem**
 
@@ -31,8 +31,8 @@ This integration pairs using a one-time enrollment code, verifies the hub key, s
 
 ### Device and Alert Streaming (Oasira Home ingest)
 
-- Streams tracked Home Assistant entity state to `POST {api_url}/api/ingest/telemetry` (batched, periodic flush, initial snapshot on start)
-- Converts safety/security binary sensor activity to idempotent alerts via `POST {api_url}/api/ingest/alerts` and resolves matching alerts when cleared
+- Streams eligible `binary_sensor` state to `POST {api_url}/api/ingest/telemetry` (batched, periodic flush, initial snapshot on start); registered entities must be enabled, visible, and uncategorized, and other domains are not streamed
+- Converts configured safety/security binary sensor class activity to idempotent alerts via `POST {api_url}/api/ingest/alerts` and resolves matching alerts when cleared
 - Uses `Authorization: Bearer <hub api_key>`; `401/403` triggers reauth
 - Excludes entities owned by this integration from the outbound stream
 
@@ -46,14 +46,8 @@ This integration pairs using a one-time enrollment code, verifies the hub key, s
 
 - Entity/organization services: `update_entity`, `add_label_to_entity`
 - Virtual power profile services: `add_virtual_power_device`, `remove_virtual_power_device` (persisted in HA storage and reloaded into integration state)
-- Deployment service: `deploy_latest_config` (copies packaged themes/blueprints/www assets into HA config paths, preserving existing user-edited files)
+- Deployment service: `deploy_latest_config` (copies packaged blueprints into the Home Assistant blueprint path, preserving existing user-edited files)
 - Startup/bootstrap behavior includes label creation (`Favorite`, `NotForSecurityMonitoring`) and motion/security grouping setup
-
-### Webhooks and Runtime Components
-
-- Registers a location update webhook (`/api/webhook/<id>`) that creates/updates device tracker entities from incoming location payloads
-- Sets up a security alarm webhook handler
-- Provides alarm control panel and other platform entities for Oasira-managed functionality
 
 ## Home Assistant Platforms
 
@@ -97,9 +91,9 @@ Defined in `services.yaml` in this folder:
 ## Packaged Assets
 
 - `blueprints/` automation and script blueprints
-- `themes/` theme assets
-- `www/oasira_b2c/` frontend resources
-- `deploy_latest_config` copies missing files from these packages into Home Assistant config directories without overwriting existing files
+- `deploy_latest_config` copies missing blueprints into the Home Assistant blueprint directory without overwriting existing files
+
+The package does not include frontend panels or static `www` assets, and the integration does not register a static frontend path.
 
 ## Requirements
 

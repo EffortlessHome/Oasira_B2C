@@ -12,7 +12,7 @@ Oasira B2C acts as the bridge between your Home Assistant–managed devices and 
 - **Expose and integrate Home Assistant devices** so they can participate in the Oasira Home ecosystem.
 - **Communicate with Oasira Home services** (including the Oasira Home website, mobile apps, and TV apps) to enable a more unified, accessible, and powerful smart home experience across interfaces and locations.
 - **Synchronize relevant home data and events** with Oasira Home (such as device state/telemetry, safety alerts, and notifications) using a secure, hub-paired connection.
-- **Provide local Home Assistant entities, services, and webhooks** that support Oasira-driven workflows while keeping core automations and device control within Home Assistant.
+- **Provide local Home Assistant entities and services** that support Oasira-driven workflows while keeping core automations and device control within Home Assistant.
 
 In practice, this integration pairs your Home Assistant hub to Oasira Home with a revocable API key, streams supported device and alert data to Oasira Home’s ingest APIs, and enables features such as `notify.oasira` so automations running in Home Assistant can deliver notifications through the Oasira Home platform. This allows users to manage and interact with their smart home through Oasira’s apps and web experiences while leveraging Home Assistant’s local integrations and automation engine.
 
@@ -21,10 +21,9 @@ In practice, this integration pairs your Home Assistant hub to Oasira Home with 
 - Hub-paired connection to Oasira Home (one-time enrollment code exchange for a revocable hub API key)
 - Device state and safety/security alert streaming to the Oasira Home ingest API
 - `notify.oasira` service for sending notifications through the Oasira Home API
-- Alarm, entity, label, virtual power, and deployment services for local Home Assistant workflows
+- Entity, label, virtual power, and deployment services for local Home Assistant workflows
 - Area/presence, sleep mode, motion grouping, and other automation-oriented entities and helpers
-- Location update and security alarm webhook handling
-- Deployable frontend assets and blueprints included in the integration package
+- Packaged automation and script blueprints
 
 ## Installation
 
@@ -62,7 +61,7 @@ For `oasira_b2c` service schemas and fields, see `custom_components/oasira_b2c/s
 
 - Home Assistant with config flow support
 - Recorder integration enabled
-- Network access to Oasira and any configured Ollama endpoint
+- Network access to the configured Oasira Home API endpoint
 
 Python dependencies are declared in custom_components/oasira_b2c/manifest.json and installed by Home Assistant.
 
@@ -85,11 +84,11 @@ Python dependencies are declared in custom_components/oasira_b2c/manifest.json a
 Once paired, the integration streams Home Assistant state to the Oasira Home backend using the hub key:
 
 - An initial snapshot of tracked entities is sent on startup.
-- State changes for `sensor`, `binary_sensor`, `switch`, `light`, `cover`, `climate`, `media_player`, `camera`, `lock`, `fan`, `humidifier` and `water_heater` entities are batched and posted to `POST /api/ingest/telemetry` every 30 seconds.
-- Safety/security binary sensors (smoke, gas, heat, water, motion, door/window, vibration, tamper, etc.) produce idempotent alerts at `POST /api/ingest/alerts`; clearing a sensor resolves the matching alert.
+- State changes for `binary_sensor` entities are batched and posted to `POST /api/ingest/telemetry` every 30 seconds. Other entity domains are not streamed.
+- Configured safety/security binary sensor classes (such as smoke, gas, heat, water, doors/windows, vibration, and tamper) produce idempotent alerts at `POST /api/ingest/alerts`; clearing a sensor resolves the matching alert.
 - The hub key is sent as `Authorization: Bearer <key>`. If the backend rejects it with 401/403, streaming pauses and Home Assistant starts re-pair (reauth).
 
-Entities owned by this integration are excluded from the stream.
+Only registered entities that are enabled, visible, and not categorized are included; entities owned by this integration are excluded. Unregistered binary sensor states are also eligible.
 
 ### Notifications
 
@@ -110,33 +109,9 @@ data:
     kind: automation
 ```
 
-### Configuration.yaml changes
+No `configuration.yaml`, custom panel, or external-directory configuration is required.
 
-Add the following configuration to your Home Assistant configuration.yaml file:
-
-```yaml
-homeassistant:
-  allowlist_external_dirs:
-    - /media
-    - /config/www/oasira_b2c
-
-panel_custom:
-  - name: Oasira-config-panel
-    sidebar_title: Oasira Config
-    sidebar_icon: mdi:alpha-e-box-outline
-    url_path: oasira-config-panel
-    module_url: /local/oasira_b2c/config-panel.js
-
-  - name: Oasira-area-panel
-    url_path: oasira-area-panel
-    module_url: /local/oasira_b2c/area-panel.js
-
-  - name: Oasira-label-panel
-    url_path: oasira-label-panel
-    module_url: /local/oasira_b2c/label-panel.js
-```
-
-After adding the configuration, restart Home Assistant for changes to take effect.
+The integration does not currently ship frontend assets. The `deploy_latest_config` service copies packaged automation and script blueprints into the Home Assistant blueprint directory without overwriting existing files.
 
 ### Required Information
 
@@ -158,21 +133,18 @@ After adding the configuration, restart Home Assistant for changes to take effec
 ┌─────────────────────────────────────┐
 │           Your Home Network         │
 │                                     │
-│  ┌──────────────┐  ┌────────────┐  │
-│  │Home Assistant │──│Oasira│ │
-│  │   (local)     │  │ (local)    │  │
-│  └──────┬───────┘  └─────┬──────┘  │
-│         │                │         │
-│    Local Automations    Local UI    │
-│    Local Security       Local Data  │
-└─────────┬────────────────┬─────────┘
-          │   Encrypted    │
-          └───── Cloud ────┘
-        (remote access only)
+│  ┌──────────────────────────────┐   │
+│  │       Home Assistant         │   │
+│  │  local automations and state │   │
+│  └──────────────┬───────────────┘   │
+└─────────────────┼───────────────────┘
+                  │ binary sensor telemetry
+                  │ and safety alerts
+                  ▼
+        ┌────────────────────┐
+        │  Oasira Home Cloud │
+        └────────────────────┘
 ```
 
-✅ All automations run **locally** — no cloud dependency
-✅ Your data **stays on your hardware**
-✅ Cloud used **only** for secure remote access & optional monitoring
-
-
+✅ Home Assistant automations run **locally**
+⚠️ When paired, the integration sends state and metadata for enabled, non-hidden `binary_sensor` entities to the Oasira Home cloud. Relevant safety binary sensors also generate cloud alerts.

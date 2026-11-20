@@ -96,5 +96,4 @@ remove_virtual_power_device:
 
 deploy_latest_config:
   name: Deploy latest config
-  description: Deploy latest Oasira configuration files (themes, blueprints, cards)
-
+  description: Deploy latest Oasira blueprints

@@ -27,6 +27,7 @@ from .virtualpowersensor import (
 
 
 _LOGGER = logging.getLogger(__name__)
+DEFAULT_WEATHER_ENTITY = "weather.forecast_home"
 
 
 def _sanitize_unique_id(value: str) -> str:
@@ -44,7 +45,10 @@ async def async_setup_entry(
     async_add_entities([AverageHumiditySensor()])
     async_add_entities([AverageTemperatureSensor()])
     async_add_entities([VirtualIlluminanceSensor()])
-    async_add_entities([HighTemperatureTomorrowSensor()])
+    if hass.states.get(DEFAULT_WEATHER_ENTITY) is not None:
+        async_add_entities(
+            [HighTemperatureTomorrowSensor(DEFAULT_WEATHER_ENTITY)]
+        )
 
     powerentities = []
 
@@ -374,9 +378,10 @@ class HighTemperatureTomorrowSensor(SensorEntity, RestoreEntity):
             "manufacturer": NAME,
         }
 
-    def __init__(self) -> None:
+    def __init__(self, weather_entity_id: str = DEFAULT_WEATHER_ENTITY) -> None:
         """Initialize the sensor."""
         self._state = ""
+        self._weather_entity_id = weather_entity_id
 
     @property
     def unique_id(self) -> str:
@@ -400,19 +405,30 @@ class HighTemperatureTomorrowSensor(SensorEntity, RestoreEntity):
         """Fetch new state data for the sensor."""
         _LOGGER.debug("In high temp tomorrow forecast")
 
+        if self.hass.states.get(self._weather_entity_id) is None:
+            _LOGGER.debug("Weather entity %s is unavailable", self._weather_entity_id)
+            return
+
         forecasts = self.hass.services.call(
             "weather",
             "get_forecasts",
-            {"type": "daily", "entity_id": "weather.forecast_home"},
+            {"type": "daily", "entity_id": self._weather_entity_id},
             blocking=True,
             return_response=True,
         )
 
-        _LOGGER.debug(f"In high temp tomorrow forecasts: {forecasts}")
+        _LOGGER.debug("In high temp tomorrow forecasts: %s", forecasts)
+        if not isinstance(forecasts, dict):
+            return
 
-        forecast = forecasts.get("weather.forecast_home").get("forecast")
+        weather_forecast = forecasts.get(self._weather_entity_id)
+        if not isinstance(weather_forecast, dict):
+            return
 
-        _LOGGER.debug(f"In high temp tomorrow forecast: {forecast}")
+        forecast = weather_forecast.get("forecast")
+        _LOGGER.debug("In high temp tomorrow forecast: %s", forecast)
 
-        if len(forecast) > 0:
-            self._state = forecast[1]["temperature"]
+        if isinstance(forecast, list) and len(forecast) > 1:
+            tomorrow = forecast[1]
+            if isinstance(tomorrow, dict) and "temperature" in tomorrow:
+                self._state = tomorrow["temperature"]

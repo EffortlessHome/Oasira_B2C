@@ -3,28 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import math
 import os
 import shutil
-import time
 from typing import Any
-from urllib.parse import quote
 
 import aiohttp
-
-from google.auth import jwt
-from google.auth.crypt import rsa
 import voluptuous as vol
 
-from homeassistant.components import panel_custom
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.components.notify import ATTR_DATA, ATTR_MESSAGE, ATTR_TITLE
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.components import webhook
-from homeassistant.helpers import entity_platform
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
@@ -35,8 +25,6 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_admin_service
-
-from homeassistant.components.http import StaticPathConfig
 
 ATTR_TITLE = "title"
 ATTR_DATA = "data"
@@ -54,34 +42,7 @@ from .const import (
 
 from .deviceclassgroupsync import async_setup_devicegroup
 
-
-
-
-
-try:
-    # Older versions (pre-2025)
-    from homeassistant.components.device_tracker import SOURCE_TYPE_GPS
-except ImportError:
-    # Newer versions (2025+)
-    SOURCE_TYPE_GPS = "gps"
-
-from aiohttp import web
-
-LOCATION_SERVICE_SCHEMA = vol.Schema(
-    {
-        vol.Required("device_id"): str,
-        vol.Required("latitude"): float,
-        vol.Required("longitude"): float,
-        vol.Optional("accuracy"): float,
-    }
-)
-
 _LOGGER = logging.getLogger(__name__)
-LEGACY_DOMAIN = "oasira"
-
-GOOGLE_OAUTH_URL = "https://oauth2.googleapis.com/token"
-FIREBASE_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
-FCM_URL = "https://fcm.googleapis.com/v1/projects/oasira-oauth/messages:send"
 VIRTUAL_POWER_STORAGE_KEY = "oasira_virtual_power_profiles"
 VIRTUAL_POWER_STORAGE_VERSION = 1
 
@@ -101,163 +62,6 @@ class HASSComponent:
     def get_hass(cls):
         """Get Hass."""
         return cls.hass_instance
-
-
-
-
-
-async def handle_oasira_location_update(hass, webhook_id, request):
-    """Register Oasira location update service."""
-
-    _LOGGER.info("[Oasira] 📍 Handling location update webhook")
-    _LOGGER.info("[Oasira] Request headers: %s", dict(request.headers))
-    try:
-        data = await request.json()
-        _LOGGER.info("[Oasira] 📍 Location update payload: %s", data)
-    except Exception as e:
-        _LOGGER.error("[Oasira] ❌ Invalid JSON payload: %s", e)
-        return web.Response(status=400, text="Invalid JSON")
-
-    ####TODO: get user's email here and link this device tracker to them (local and online) #####
-
-    device_name = data.get("device_name")
-    device_id = data.get("device_id")
-    lat = data.get("latitude")
-    lon = data.get("longitude")
-    accuracy = data.get("accuracy", 30.0)
-
-    _LOGGER.info(
-        "[Oasira] 📍 Parsed data - device_id: %s, lat: %s, lon: %s, accuracy: %s",
-        device_id,
-        lat,
-        lon,
-        accuracy,
-    )
-
-    if not device_id or lat is None or lon is None:
-        _LOGGER.error(
-            "[Oasira] ❌ Missing required fields - device_id: %s, lat: %s, lon: %s",
-            device_id,
-            lat,
-            lon,
-        )
-        return web.Response(status=400, text="Missing required fields")
-
-    device_id_new = (
-        device_id.lower()
-        .replace("@", "_")
-        .replace(".", "_")
-        .replace("-", "_")
-        .replace("{", "")
-        .replace("}", "")
-    )
-    entity_id = f"device_tracker.{device_id_new}"
-
-    domain_data = hass.data.setdefault(DOMAIN, {})
-    entry_id = domain_data.get("entry_id")
-    device_registry = dr.async_get(hass)
-    device_entry = device_registry.async_get_or_create(
-        config_entry_id=entry_id,
-        identifiers={(DOMAIN, device_id_new)},
-        name=device_name or device_id_new,
-        manufacturer=NAME,
-        model="Mobile Device",
-    )
-
-    entity_registry = er.async_get(hass)
-    entity_entry = entity_registry.async_get_or_create(
-        domain="device_tracker",
-        platform=DOMAIN,
-        unique_id=f"{DOMAIN}_tracker_{device_id_new}",
-        suggested_object_id=device_id_new,
-        device_id=device_entry.id,
-        original_name=device_name or device_id_new,
-    )
-    entity_id = entity_entry.entity_id
-
-    _LOGGER.info("[Oasira] 📍 Creating/updating device tracker: %s", entity_id)
-
-    # Update or create entity with immediate geofencing state determination
-    # Calculate the state based on location coordinates right away
-    state = "unknown"
-
-    try:
-        # Try to get home coordinates for immediate state calculation
-        home_coords = None
-        system_data = hass.data.get(DOMAIN, {})
-        address_json = system_data.get("address_json")
-
-        if address_json:
-            if isinstance(address_json, str):
-                address_data = json.loads(address_json)
-            else:
-                address_data = address_json
-
-            home_lat = address_data.get("latitude")
-            home_lon = address_data.get("longitude")
-
-            if home_lat is not None and home_lon is not None:
-                home_coords = (float(home_lat), float(home_lon))
-
-        # Fallback to HA config coordinates
-        if not home_coords:
-            try:
-                home_lat = hass.config.latitude
-                home_lon = hass.config.longitude
-                if home_lat is not None and home_lon is not None:
-                    home_coords = (float(home_lat), float(home_lon))
-            except:
-                pass
-
-        # Calculate distance and determine state
-        if home_coords:
-            home_lat, home_lon = home_coords
-
-            # Earth's radius in meters
-            R = 6371000
-
-            # Convert degrees to radians
-            lat1_rad = math.radians(home_lat)
-            lon1_rad = math.radians(home_lon)
-            lat2_rad = math.radians(lat)
-            lon2_rad = math.radians(lon)
-
-            # Haversine formula
-            dlat = lat2_rad - lat1_rad
-            dlon = lon2_rad - lon1_rad
-
-            a = (
-                math.sin(dlat / 2) ** 2
-                + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
-            )
-            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-            distance = R * c
-            radius = 100.0  # 100 meter radius
-
-            if distance <= radius:
-                state = "home"
-            else:
-                state = "not_home"
-
-    except Exception as e:
-        _LOGGER.debug("[Oasira] Could not calculate geofence state: %s", e)
-        state = "unknown"
-
-    hass.states.async_set(
-        entity_id,
-        state,
-        {
-            "latitude": lat,
-            "longitude": lon,
-            "gps_accuracy": accuracy,
-            "source_type": SOURCE_TYPE_GPS,
-            "friendly_name": f" {device_name}",
-        },
-    )
-
-    _LOGGER.info("[Oasira] ✅ Location update successful for %s", entity_id)
-    return web.json_response({"status": "success", "message": "Location updated"})
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -420,16 +224,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model=NAME,
     )
 
-    integration_dir = os.path.dirname(os.path.abspath(__file__))
-    www_dir = os.path.join(integration_dir, "www", "oasira_b2c")
-    try:
-        await hass.http.async_register_static_paths(
-            [StaticPathConfig("/oasira_b2c", www_dir, False)]
-        )
-    except Exception as exc:  # pragma: no cover - already registered on reload
-        _LOGGER.debug("Static path registration skipped: %s", exc)
-
-    
     await hass.config_entries.async_forward_entry_setups(
         entry,
         [
@@ -442,24 +236,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "button",
         ],
     )
-
-    # Unregister if already registered
-    location_webhook_id = hass.data.get(DOMAIN, {}).get("location_webhook_id")
-    if location_webhook_id:
-        webhook.async_unregister(hass, location_webhook_id)
-
-    webhook_id = webhook.async_generate_id()
-    hass.data.setdefault(DOMAIN, {})["location_webhook_id"] = webhook_id
-
-    webhook.async_register(
-        hass,
-        DOMAIN,
-        "Oasira Location Update",
-        webhook_id,
-        handle_oasira_location_update,
-    )
-
-    _LOGGER.info("[Oasira] Webhook registered: %s", webhook_id)
 
     register_services(hass)
     await async_setup_notification_service(hass)
@@ -525,27 +301,19 @@ def _deploy_latest_config_sync(hass: HomeAssistant):
     """Synchronous helper for deploying config."""
     integration_dir = os.path.dirname(os.path.abspath(__file__))
 
-    source_themes_dir = os.path.join(integration_dir, "themes")
     source_blueprints_dir = os.path.join(integration_dir, "blueprints")
-    source_dir = os.path.join(integration_dir, "www/oasira_b2c")
 
-    target_themes_dir = hass.config.path("themes")
-    target_dir = hass.config.path("www/oasira_b2c")
     target_blueprints_dir = hass.config.path("blueprints")
 
     # Ensure destination directories exist
-    os.makedirs(target_themes_dir, exist_ok=True)
-    os.makedirs(target_dir, exist_ok=True)
     os.makedirs(target_blueprints_dir, exist_ok=True)
 
     # Only copy files that are missing so user edits are preserved
-    _copy_missing_files(source_themes_dir, target_themes_dir)
     _copy_missing_files(source_blueprints_dir, target_blueprints_dir)
-    _copy_missing_files(source_dir, target_dir)
 
 
 async def deploy_latest_config(hass: HomeAssistant):
-    """Deploy latest: theme, cards, blueprints, etc."""
+    """Deploy the latest packaged blueprints."""
     _LOGGER.info("[Oasira] Deploying latest configuration files...")
     await hass.async_add_executor_job(_deploy_latest_config_sync, hass)
     _LOGGER.info("[Oasira] Configuration deployment complete.")
@@ -578,10 +346,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Remove backward-compatible service aliases if present
     if hass.services.has_service(DOMAIN, "create_alert_service"):
         hass.services.async_remove(DOMAIN, "create_alert_service")
-
-    location_webhook_id = hass.data.get(DOMAIN, {}).get("location_webhook_id")
-    if location_webhook_id:
-        webhook.async_unregister(hass, location_webhook_id)
 
     return True
 
@@ -796,7 +560,7 @@ async def update_entity(call):
     new_area = call.data.get("area_id")
 
     hass = HASSComponent.get_hass()
-    ent_reg = entity_registry.async_get(hass)
+    ent_reg = er.async_get(hass)
 
     ent_reg.async_update_entity(entity_id, area_id=new_area)
 
@@ -916,4 +680,3 @@ async def async_setup_notification_service(hass: HomeAssistant) -> None:
 #    device_name: master_bedroom_tv
 #    platform: android
 # }
-

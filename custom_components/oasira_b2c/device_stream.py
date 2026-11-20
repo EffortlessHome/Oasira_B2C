@@ -87,7 +87,8 @@ class OasiraHomeDeviceStreamer:
     async def async_start(self) -> None:
         """Send an initial snapshot and start listening for state changes."""
         for state in self._hass.states.async_all():
-            self._process_state(state, initial=True)
+            if self._is_tracked(state.entity_id):
+                self._process_state(state, initial=True)
         self._unsub_bus = self._hass.bus.async_listen(
             EVENT_STATE_CHANGED, self._handle_state_changed
         )
@@ -219,7 +220,7 @@ class OasiraHomeDeviceStreamer:
             )
             if alert_type in ("motion", "occupancy"):
                 return
-            if alert_type not in ALERT_CLASSES and not entity_id.startswith("binary_sensor."):
+            if alert_type not in ALERT_CLASSES:
                 return
             occurred_at = state.last_changed.isoformat() if isinstance(state.last_changed, datetime) else _now_iso()
             severity = (
