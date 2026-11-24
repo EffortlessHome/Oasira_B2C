@@ -49,6 +49,66 @@ This integration pairs using a one-time enrollment code, verifies the hub key, s
 - Deployment service: `deploy_latest_config` (copies packaged blueprints into the Home Assistant blueprint path, preserving existing user-edited files)
 - Startup/bootstrap behavior includes label creation (`Favorite`, `NotForSecurityMonitoring`) and motion/security grouping setup
 
+### Virtual Power Sensors (New Feature)
+
+The integration now includes **virtual power sensors** that estimate energy usage for light and climate entities, enabling energy usage tracking against the home's total power consumption.
+
+#### How It Works
+
+- **Light entities**: When turned ON, virtual power sensors estimate power use based on average wattage for the device type (LED: 9W, incandescent: 60W, halogen: 45W, CFL: 15W, fixture: 40W)
+- **Climate entities**: When turned ON, virtual power sensors estimate power use based on average wattage for the device type (AC: 1500W, heater: 1200W, heat pump: 1000W, fan: 75W, mini-split: 800W)
+- **When OFF**: Power reads 0W
+- **Total Virtual Energy Usage**: A separate sensor (`Total Virtual Energy Usage`) accumulates estimated energy (kWh) across all tracked light and climate devices
+
+#### Entity Names
+
+Virtual power sensors use descriptive names based on the room/area and device type:
+
+| Entity ID | Display Name |
+|-----------|-------------|
+| `light.bedroom` | `bedroomlight_virtual_power` |
+| `light.kitchen` | `kitchenlight_virtual_power` |
+| `climate.bedroom` | `bedroomclimate_virtual_power` |
+| `climate.living_room` | `living_roomclimate_virtual_power` |
+
+#### Wattage Overrides
+
+Users can override the estimated power usage for any virtual power entity by setting a `wattage_override` field in the profile. This is useful if you know the actual power consumption of your specific devices.
+
+Example profile configuration with override:
+```yaml
+virtual_power_profiles:
+  - name: bedroomlight
+    entity_id: light.bedroom
+    wattage_override: 15.0  # Custom override in watts (instead of default 9W LED)
+    always_on: false
+    key: light_bedroom
+```
+
+#### Total Virtual Energy Usage
+
+- **Name**: `Total Virtual Energy Usage`
+- **Unit**: kWh
+- **Counts**: ALL virtual power sensors (both lights and climate devices)
+- **Tracked**: Estimated energy usage based on device type averages and user overrides
+
+#### Configuration
+
+No additional configuration is required for basic operation. The integration automatically:
+1. Discovers all light and climate entities
+2. Creates virtual power sensors with type-appropriate average wattage
+3. Tracks energy usage in the `Total Virtual Energy Usage` sensor
+4. Allows optional wattage overrides per device
+
+#### Services
+
+The integration provides these virtual power-related services (defined in `services.yaml`):
+
+- `add_virtual_power_device`: Add a virtual power device profile
+- `remove_virtual_power_device`: Remove a virtual power device profile
+
+These services persist profiles in Home Assistant storage and reload them into integration state.
+
 ## Home Assistant Platforms
 
 The integration forwards config entry setup to:

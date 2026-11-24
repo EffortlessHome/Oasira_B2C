@@ -7,6 +7,10 @@ from homeassistant.helpers import llm
 
 from dataclasses import dataclass
 
+# Supervisor Addon constants
+OASIRA_SUPERVISOR_ADDON_REPOSITORY = "oasira-addon-repository"
+OASIRA_SUPERVISOR_ADDON_SLUG = "oasira_cloud_bridge"
+
 from homeassistant.components.binary_sensor import (
     DOMAIN as BINARY_SENSOR_DOMAIN,
 )
@@ -98,6 +102,24 @@ RELEVANT_DOMAINS = [
     LIGHT_DOMAIN,
     COVER_DOMAIN,
 ]
+
+# Average wattage values for device types (used when device doesn't report power)
+# These are estimates for virtual power tracking
+LIGHT_AVERAGE_WATTAGES = {
+    "led": 9.0,           # LED bulb
+    "incandescent": 60.0, # Incandescent bulb
+    "halogen": 45.0,      # Halogen bulb
+    "cfl": 15.0,          # Compact Fluorescent
+    "fixture": 40.0,      # General light fixture
+}
+
+CLIMATE_AVERAGE_WATTAGES = {
+    "air_conditioner": 1500.0,  # AC unit
+    "heater": 1200.0,           # Space heater
+    "heat_pump": 1000.0,        # Heat pump
+    "fan": 75.0,                # Ceiling/stand fan
+    "mini_split": 800.0,        # Mini-split system
+}
 
 """Constants for the Google Translate text-to-speech integration."""
 

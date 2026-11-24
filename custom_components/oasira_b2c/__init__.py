@@ -233,6 +233,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             
             
             "alarm_control_panel",
+            "device_tracker",
             "button",
         ],
     )
@@ -276,6 +277,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload the integration when its options change."""
+    # First unload all platforms
+    await hass.config_entries.async_unload_platforms(
+        entry,
+        [
+            "switch",
+            "binary_sensor",
+            "sensor",
+            "cover",
+            "light",
+            "alarm_control_panel",
+            "button",
+        ],
+    )
+    # Then reload the entry (which will call async_setup_entry again)
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -336,6 +351,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             
             
             "alarm_control_panel",
+            "device_tracker",
             "button",
         ],
     )

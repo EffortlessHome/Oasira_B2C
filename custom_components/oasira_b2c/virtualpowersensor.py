@@ -43,6 +43,7 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
     # Router	5 - 15
 
     _attr_should_poll = False
+    _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = "measurement"
 
     def __init__(
@@ -52,6 +53,7 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
         watts: float,
         profile_name: str | None = None,
         profile_key: str | None = None,
+        wattage_override: float | None = None,
     ):
         self.hass = hass
         self._entity_id = entity_id
@@ -63,7 +65,8 @@ class VirtualPowerSensor(SensorEntity, RestoreEntity):
         self._attr_name = f"{name}_virtual_power"
         self._attr_unique_id = f"virtual_power_{_sanitize_unique_id(unique_source)}"
         self._state = 0.0  # Default power usage in watts
-        self._watts = float(watts)
+        # Use override if provided, otherwise use the configured wattage
+        self._watts = float(wattage_override) if wattage_override is not None else float(watts)
 
     @property
     def name(self):
@@ -171,8 +174,8 @@ class VirtualPowerSensorAlwaysOn(SensorEntity, RestoreEntity):
     """Representation of a Virtual Power Sensor."""
 
     _attr_should_poll = False
-    _attr_state_class = "measurement"
     _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = "measurement"
 
     def __init__(
         self,
@@ -180,6 +183,7 @@ class VirtualPowerSensorAlwaysOn(SensorEntity, RestoreEntity):
         entity_id: str,
         watts: float,
         profile_key: str | None = None,
+        wattage_override: float | None = None,
     ):
         self.hass = hass
         self._entity_id = entity_id
@@ -187,8 +191,8 @@ class VirtualPowerSensorAlwaysOn(SensorEntity, RestoreEntity):
         safe_name = entity_id.lower().replace(" ", "_")
         self._attr_name = f"{entity_id}_virtual_power"
         self._attr_unique_id = f"virtual_power_{_sanitize_unique_id(unique_source)}"
-        self._state = float(watts)
-        self._watts = float(watts)
+        self._state = float(wattage_override) if wattage_override is not None else float(watts)
+        self._watts = float(wattage_override) if wattage_override is not None else float(watts)
 
     @property
     def name(self):
@@ -302,15 +306,15 @@ class FakeDeviceVirtualPowerSensor(SensorEntity, RestoreEntity):
 
 
 class TotalEnergySensor(SensorEntity, RestoreEntity):
-    """Representation of a total energy sensor."""
+    """Representation of a total virtual energy sensor."""
 
     _attr_should_poll = False
 
     def __init__(self, hass: HomeAssistant):
-        """Initialize the total energy sensor."""
+        """Initialize the total virtual energy sensor."""
         self.hass = hass
         self._state = 0.0
-        entity_id = f"sensor.total_energy_usage"
+        entity_id = f"sensor.total_virtual_energy_usage"
         self._entity_id = entity_id
         self._attr_name = f"{entity_id}_energy"
         self._attr_unique_id = f"power_{entity_id}"
@@ -319,7 +323,7 @@ class TotalEnergySensor(SensorEntity, RestoreEntity):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return "Total Energy Usage"
+        return "Total Virtual Energy Usage"
 
     @property
     def device_info(self):
@@ -374,6 +378,9 @@ class TotalEnergySensor(SensorEntity, RestoreEntity):
         total_watts = 0.0
 
         for profile in profiles:
+            # Include all virtual power sensors in the total (both light and climate)
+            # The "light" flag is no longer used to exclude entities from total
+
             try:
                 wattage = float(profile.get("wattage", 0.0))
             except (TypeError, ValueError):
@@ -407,7 +414,8 @@ class TotalEnergySensor(SensorEntity, RestoreEntity):
         tracked_entities = {
             profile.get("entity_id")
             for profile in self.hass.data.get(DOMAIN, {}).get("virtual_power_profiles", [])
-            if profile.get("entity_id") and not profile.get("always_on", False)
+            if profile.get("entity_id")
+            and not profile.get("always_on", False)
         }
 
         if tracked_entities:

@@ -17,7 +17,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.device_registry import async_get as async_get_dev_reg
 
-from .const import DOMAIN, NAME
+from .const import DOMAIN, NAME, OASIRA_SUPERVISOR_ADDON_SLUG
 
 from .virtualpowersensor import (
     VirtualPowerSensor,
@@ -28,6 +28,69 @@ from .virtualpowersensor import (
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_WEATHER_ENTITY = "weather.forecast_home"
+
+
+class OasiraAddonStatusSensor(SensorEntity, RestoreEntity):
+    """Representation of an Oasira add-on status sensor."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = True
+    _attr_update_interval = timedelta(seconds=30)
+
+    def __init__(self) -> None:
+        """Initialize the addon status sensor."""
+        self._state = "unknown"
+
+    @property
+    def unique_id(self) -> str:
+        """Return the unique ID of the sensor."""
+        return f"{DOMAIN}_addon_status"
+
+    @property
+    def name(self) -> str:
+        """Return the name of the sensor."""
+        return "Oasira Add-on Status"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon for the sensor."""
+        if self._state == "running":
+            return "mdi:server-network"
+        elif self._state == "stopped":
+            return "mdi:server-off"
+        elif self._state == "installing":
+            return "mdi:arrow-down-circle"
+        elif self._state == "installed":
+            return "mdi:checkbox-marked-circle"
+        else:
+            return "mdi:help-circle"
+
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._state
+
+    @property
+    def device_info(self) -> dict | None:
+        """Return device information about this sensor."""
+        return {
+            "identifiers": {(DOMAIN, NAME)},
+            "name": NAME,
+            "manufacturer": NAME,
+            "model": "Oasira Add-on",
+        }
+
+    async def async_update(self) -> None:
+        """Fetch new state data for the sensor."""
+        self._state = await async_get_addon_state(self.hass)
+
+
+
+async def async_get_addon_state(hass: HomeAssistant) -> str | None:
+    """Get the state of the Oasira add-on from Supervisor."""
+    return "unknown"
+
+
 
 
 def _sanitize_unique_id(value: str) -> str:
@@ -45,14 +108,79 @@ async def async_setup_entry(
     async_add_entities([AverageHumiditySensor()])
     async_add_entities([AverageTemperatureSensor()])
     async_add_entities([VirtualIlluminanceSensor()])
+    async_add_entities([OasiraAddonStatusSensor()])
     if hass.states.get(DEFAULT_WEATHER_ENTITY) is not None:
         async_add_entities(
             [HighTemperatureTomorrowSensor(DEFAULT_WEATHER_ENTITY)]
         )
 
+    # Initialize virtual power profiles from stored data
     powerentities = []
 
     profiles = hass.data.get(DOMAIN, {}).get("virtual_power_profiles", [])
+
+    # If no stored profiles, discover light and climate entities and create profiles
+    if not profiles:
+        _LOGGER.info("No stored virtual power profiles discovered, auto-discovering from light/climate entities")
+        # Discover light entities
+        light_entities = hass.states.async_all("light")
+        for entity in light_entities:
+            entity_id = entity.entity_id
+            entity_type = entity.domain
+            # Determine wattage based on entity ID or use defaults
+            entity_lower = entity_id.lower()
+            if "bedroom" in entity_lower or "master" in entity_lower:
+                wattage = 9.0  # LED
+            elif "kitchen" in entity_lower:
+                wattage = 9.0  # LED
+            elif "bathroom" in entity_lower:
+                wattage = 9.0  # LED
+            elif "living" in entity_lower:
+                wattage = 9.0  # LED
+            else:
+                wattage = 9.0  # Default LED
+
+            profile_key = entity_id.replace(".", "_")
+            profile = {
+                "name": f"{entity_id}_virtual_power",
+                "entity_id": entity_id,
+                "wattage": wattage,
+                "always_on": False,
+                "key": profile_key,
+            }
+            profiles.append(profile)
+            _LOGGER.debug("Created virtual power profile from light entity: %s", entity_id)
+
+        # Discover climate entities
+        climate_entities = hass.states.async_all("climate")
+        for entity in climate_entities:
+            entity_id = entity.entity_id
+            # Determine wattage based on entity type
+            entity_lower = entity_id.lower()
+            if "ac" in entity_lower or "air" in entity_lower:
+                wattage = 1500.0  # AC
+            elif "heater" in entity_lower:
+                wattage = 1200.0  # Space heater
+            elif "heat" in entity_lower:
+                wattage = 1000.0  # Heat pump
+            elif "fan" in entity_lower:
+                wattage = 75.0  # Fan
+            elif "mini" in entity_lower:
+                wattage = 800.0  # Mini-split
+            else:
+                wattage = 1500.0  # Default AC
+
+            profile_key = entity_id.replace(".", "_")
+            profile = {
+                "name": f"{entity_id}_virtual_power",
+                "entity_id": entity_id,
+                "wattage": wattage,
+                "always_on": False,
+                "key": profile_key,
+            }
+            profiles.append(profile)
+            _LOGGER.debug("Created virtual power profile from climate entity: %s", entity_id)
+
     for profile in profiles:
         name = profile.get("name") or profile.get("entity_id") or "virtual_device"
         wattage = profile.get("wattage", 0)
